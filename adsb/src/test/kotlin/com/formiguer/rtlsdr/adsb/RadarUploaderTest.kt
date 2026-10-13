@@ -197,4 +197,38 @@ class RadarUploaderTest {
             assertTrue(r.message.startsWith("HTTP 403") && r.message.contains("Access denied by host") && !r.message.contains("<"), r.message)
         } finally { srv.stop(0) }
     }
+
+    @Test
+    fun passesTheHostingJavascriptChallenge() {
+        // El hosting contesta 200 con una página que calcula la cookie __test en JavaScript; la app debe resolverla y reintentar
+        val plain = ByteArray(16) { (it * 7 + 3).toByte() }
+        val k = ByteArray(16) { (it + 1).toByte() }
+        val iv = ByteArray(16) { (200 - it).toByte() }
+        val enc = javax.crypto.Cipher.getInstance("AES/CBC/NoPadding").also {
+            it.init(javax.crypto.Cipher.ENCRYPT_MODE, javax.crypto.spec.SecretKeySpec(k, "AES"), javax.crypto.spec.IvParameterSpec(iv))
+        }.doFinal(plain)
+        fun hex(b: ByteArray) = b.joinToString("") { "%02x".format(it) }
+        val page = "<html><body><script type=\"text/javascript\" src=\"/aes.js\"></script><script>function toNumbers(d){}" +
+            "var a=toNumbers(\"${hex(k)}\"),b=toNumbers(\"${hex(iv)}\"),c=toNumbers(\"${hex(enc)}\");" +
+            "document.cookie=\"__test=\"+toHex(slowAES.decrypt(c,2,a,b));location.href=\"/x?i=1\";</script></body></html>"
+        val urls = CopyOnWriteArrayList<String>()
+        val srv = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        srv.createContext("/") { ex ->
+            urls.add(ex.requestURI.toString())
+            val ok = ex.requestHeaders.getFirst("Cookie") == "__test=${hex(plain)}"
+            val body = (if (ok) "{\"ok\":true,\"ver\":false,\"aviones\":0}" else page).toByteArray()
+            ex.sendResponseHeaders(200, body.size.toLong()); ex.responseBody.use { it.write(body) }
+        }
+        srv.start()
+        try {
+            val up = RadarUploader(tracker(), { null }, { true })
+            val cfg = RadarUploader.Config("http://127.0.0.1:${srv.address.port}", "123456")
+            val r = up.sendOnce(cfg)
+            assertTrue(r.ok, r.message)
+            assertTrue(urls.size == 2 && urls[1].endsWith("&i=1"), urls.toString())
+            // la cookie se recuerda: el siguiente envío pasa a la primera
+            val r2 = up.sendOnce(cfg)
+            assertTrue(r2.ok && urls.size == 3, urls.toString())
+        } finally { srv.stop(0) }
+    }
 }

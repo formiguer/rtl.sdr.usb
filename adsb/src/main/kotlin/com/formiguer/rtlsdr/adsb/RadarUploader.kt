@@ -3,7 +3,9 @@ package com.formiguer.rtlsdr.adsb
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import javax.crypto.Cipher
 import javax.crypto.Mac
+import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
@@ -105,9 +107,12 @@ class RadarUploader(
 
     private class Raw(val ok: Boolean, val ver: Boolean, val message: String, val aircraft: Int, val serverTime: Long?)
 
-    private fun post(cfg: Config, body: String): Raw {
+    /** Cookie «__test» que piden algunos hostings gratuitos (ByetHost/iFastNet) para dejar pasar a un cliente que sí ejecuta JavaScript. */
+    @Volatile private var hostCookie: String? = null
+
+    private fun post(cfg: Config, body: String, firstTry: Boolean = true): Raw {
         val ts = clock() / 1000 + offsetSec
-        val url = cfg.baseUrl.trim().trimEnd('/') + "/api/index.php?r=radar/subir"
+        val url = cfg.baseUrl.trim().trimEnd('/') + "/api/index.php?r=radar/subir" + if (hostCookie != null) "&i=1" else ""
         var c: HttpURLConnection? = null
         try {
             c = URL(url).openConnection() as HttpURLConnection
@@ -120,6 +125,7 @@ class RadarUploader(
             c.setRequestProperty("User-Agent", USER_AGENT)
             c.setRequestProperty("Accept", "application/json, text/plain, */*")
             c.setRequestProperty("X-Requested-With", "swap-turnos")
+            hostCookie?.let { c.setRequestProperty("Cookie", "__test=$it") }
             c.setRequestProperty("X-Radar-Time", ts.toString())
             c.setRequestProperty("X-Radar-Sig", sign(cfg.key, "$ts.$body"))
             // Sin modo «streaming»: con él Java no entrega el cuerpo de una respuesta 401 y no se vería la hora del servidor
@@ -127,6 +133,10 @@ class RadarUploader(
             val code = c.responseCode
             val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
             val serverTime = Regex("\"hora_servidor\":(\\d+)").find(text)?.groupValues?.get(1)?.toLongOrNull()
+            if (firstTry && !text.contains("\"ok\"") && !text.contains("\"error\"")) {
+                // Página de reto del hosting («necesita JavaScript»): se resuelve el cálculo de la cookie y se reintenta una vez
+                solveHostChallenge(text)?.let { hostCookie = it; return post(cfg, body, false) }
+            }
             return if (code in 200..299 && text.contains("\"ok\":true")) {
                 Raw(
                     true, text.contains("\"ver\":true"), "ok",
@@ -183,6 +193,24 @@ class RadarUploader(
         }
 
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android 7.1.1; Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0 Mobile Safari/537.36 rtl-sdr-radar/1"
+
+        /**
+         * Reto anti-bots de iFastNet: la página trae tres números hexadecimales a, b y c; la cookie «__test» es el
+         * AES-128-CBC descifrado de c con clave a e IV b, en hexadecimal. Devuelve null si la página no es ese reto.
+         */
+        fun solveHostChallenge(page: String): String? {
+            if (!page.contains("slowAES")) return null
+            val nums = Regex("toNumbers\\(\"([0-9a-fA-F]+)\"\\)").findAll(page).map { it.groupValues[1] }.toList()
+            if (nums.size < 3) return null
+            fun bytes(h: String) = ByteArray(h.length / 2) { h.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+            return try {
+                val cipher = Cipher.getInstance("AES/CBC/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(bytes(nums[0]), "AES"), IvParameterSpec(bytes(nums[1])))
+                cipher.doFinal(bytes(nums[2])).joinToString("") { "%02x".format(it) }
+            } catch (e: Exception) {
+                null
+            }
+        }
 
         private fun snippet(text: String): String {
             val t = text.replace(Regex("<script.*?</script>|<style.*?</style>|<[^>]*>", RegexOption.DOT_MATCHES_ALL), " ")
