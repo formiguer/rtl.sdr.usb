@@ -3,23 +3,31 @@
 App Android para recibir ADS-B (aviones) con un dongle **RTL-SDR** por USB OTG y verlos en un mapa.
 
 - Objetivo: tablet con Android 7.1.1 (API 25).
-- Estado: **fase 3** — ADS-B con mapa centrado en Palma + pestaña de banda aérea (audio AM 118–137 MHz).
+- Estado: ADS-B con mapa centrado en Palma, banda aérea (audio AM 118–137 MHz) y **driver USB integrado**.
 
 ## Cómo funciona
 ```
-RTL-SDR ──USB OTG──▶ app "driver" (rtl_tcp, puerto 1234) ──TCP local──▶ esta app
-                                                             demodula 1090 MHz → CRC → posición/altitud/velocidad → mapa
+RTL-SDR ──USB OTG──▶ driver USB integrado (RTL2832U + R820T/R820T2) ──▶ ADS-B (1090 MHz)  → mapa
+                                                                     └▶ banda aérea AM (118–137 MHz) → audio
 ```
-La parte USB la hace una app de driver RTL-SDR que expone el servidor `rtl_tcp`
-(en Google Play: *RTL2832U driver* de Martin Marinov, paquete `marto.rtl_tcp_andro`, u otra equivalente).
-Esta app solo se conecta a `127.0.0.1:1234`, configura 1090 MHz / 2 Msps / ganancia 49.6 dB y decodifica.
+La app habla directamente con el dongle: al abrirla (o al enchufarlo) Android pide el permiso USB y no hace falta
+ninguna otra app. Si prefieres un driver externo, marca la casilla *Usar un driver externo (rtl_tcp)* y la app
+leerá de `127.0.0.1:1234` (p. ej. *RTL2832U driver* de Martin Marinov).
+
+### El driver USB
+`adsb/src/main/kotlin/.../driver` es un port a Kotlin de [librtlsdr](https://github.com/osmocom/rtl-sdr) limitado al
+camino **R820T / R820T2** (los dongles RTL-SDR más habituales). Con otros sintonizadores (E4000, FC0012/13, R828D)
+la app lo indica y se puede usar el driver externo.
+Se verifica con `DriverTranscriptTest`: el driver Kotlin debe generar **la misma secuencia de 341 transferencias USB,
+byte a byte**, que el `librtlsdr` oficial (ver `tools/ref-transcript`). Lo que no se puede comprobar sin hardware es
+el comportamiento real del dongle en cada tablet.
 
 ## Uso
-1. Instala el driver RTL-SDR y esta app (APK de *Actions → Artifacts*).
-2. Conecta el dongle con el cable OTG y abre el driver; acepta el permiso USB y pulsa **Start**.
-3. Vuelve a esta app: arriba verás el estado y los mensajes ADS-B recibidos; los aviones salen en el mapa.
+1. Instala el APK (*Actions → último run → Artifacts*). Si ya tenías una versión anterior firmada con otra clave, desinstálala una vez.
+2. Conecta el dongle con el cable OTG y acepta el permiso USB (marca "usar de forma predeterminada").
+3. Pestaña **ADS-B** para los aviones o **Banda aérea** para escuchar.
 
-Necesitas antena para 1090 MHz y, para ver aviones, vista despejada (ventana/exterior).
+Necesitas antena para 1090 MHz (ADS-B) y otra de VHF (banda aérea), y vista despejada.
 
 ## Pestaña "Banda aérea"
 Receptor AM de toda la banda aeronáutica (118.000–136.990 MHz, canales de 25 y 8,33 kHz):
@@ -37,4 +45,9 @@ Receptor AM de toda la banda aeronáutica (118.000–136.990 MHz, canales de 25 
 1. Detección USB + mapa. ✅
 2. Decodificador ADS-B + aviones en el mapa. ✅ (pendiente de probar con antena real)
 3. Banda aérea: sintonía, escáner y audio. ✅ (pendiente de probar con antena VHF real)
-4. Driver USB propio (sin app externa), historial de rutas y extras.
+4. Driver USB propio (sin app externa). ✅ (pendiente de probar con el dongle)
+5. Historial de rutas, otros sintonizadores y extras.
+
+## Licencia
+GPL-2.0-or-later (ver `LICENSE`): el driver USB es un port de librtlsdr / tuner_r82xx.c
+(© Steve Markgraf, Mauro Carvalho Chehab y colaboradores de osmocom/rtl-sdr).

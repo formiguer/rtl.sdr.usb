@@ -33,6 +33,7 @@ class RadioReceiver(
     private val audio: AudioSink? = null,
     private val onAirband: ((AirbandInfo) -> Unit)? = null,
     private val settleMs: Int = 200,
+    private val sourceFactory: (() -> IqSource)? = null,
     private val onStatus: (Status, String?) -> Unit,
 ) {
     enum class Status { CONNECTING, STREAMING, WAITING }
@@ -53,7 +54,11 @@ class RadioReceiver(
 
     @Volatile private var skipRequested = false
     @Volatile private var running = false
-    @Volatile private var client: RtlTcpClient? = null
+    @Volatile private var client: IqSource? = null
+
+    /** Origen de datos en uso ("USB directo", "driver externo rtl_tcp…"). */
+    @Volatile var sourceDescription: String = ""
+        private set
     private var thread: Thread? = null
 
     fun setScanning(on: Boolean) {
@@ -87,12 +92,13 @@ class RadioReceiver(
 
     private fun loop() {
         while (running) {
-            val c = RtlTcpClient(host, port)
-            client = c
-            val session = Session(c)
             var streaming = false
             onStatus(Status.CONNECTING, null)
             try {
+                val c = sourceFactory?.invoke() ?: RtlTcpClient(host, port)
+                client = c
+                sourceDescription = c.description
+                val session = Session(c)
                 c.run({ running }, { session.syncConfig() }) { buf, n ->
                     if (!streaming) {
                         streaming = true
@@ -113,7 +119,7 @@ class RadioReceiver(
         }
     }
 
-    private inner class Session(private val client: RtlTcpClient) {
+    private inner class Session(private val client: IqSource) {
         private var adsb = newAdsb()
         private val am = AmChannel()
         private val scanner = BandScanner()

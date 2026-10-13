@@ -1,28 +1,35 @@
 package com.formiguer.rtlsdr
 
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.webkit.WebView
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.formiguer.rtlsdr.adsb.AircraftTracker
+import com.formiguer.rtlsdr.adsb.IqSource
 import com.formiguer.rtlsdr.adsb.Mode
 import com.formiguer.rtlsdr.adsb.RadioReceiver
+import com.formiguer.rtlsdr.adsb.RtlTcpClient
+import java.io.IOException
 
 class MainActivity : Activity() {
 
@@ -33,6 +40,7 @@ class MainActivity : Activity() {
     private lateinit var air: AirbandPanel
     private lateinit var tabAdsb: Button
     private lateinit var tabAir: Button
+    private lateinit var external: CheckBox
 
     private val tracker = AircraftTracker()
     private val audioOut = AudioOut()
@@ -41,6 +49,8 @@ class MainActivity : Activity() {
 
     @Volatile private var linkStatus = RadioReceiver.Status.CONNECTING
     @Volatile private var linkMessage: String? = null
+    @Volatile private var useExternal = false
+    @Volatile private var permissionRequested = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val ticker = object : Runnable {
@@ -51,17 +61,24 @@ class MainActivity : Activity() {
     }
 
     private val usbReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = refresh()
+        override fun onReceive(context: Context, intent: Intent) {
+            // permiso concedido/denegado o dongle conectado/desconectado
+            permissionRequested = false
+            refresh()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
+        val prefs = getPreferences(Context.MODE_PRIVATE)
+        useExternal = prefs.getBoolean(KEY_EXTERNAL, false)
 
         radio = RadioReceiver(
             tracker,
             audio = audioOut,
             onAirband = { info -> runOnUiThread { air.update(info) } },
+            sourceFactory = ::createSource,
         ) { st, msg ->
             linkStatus = st
             linkMessage = msg
@@ -82,7 +99,7 @@ class MainActivity : Activity() {
             addView(status, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(map, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         }
-        air = AirbandPanel(this, radio, audioOut, getPreferences(Context.MODE_PRIVATE))
+        air = AirbandPanel(this, radio, audioOut, prefs)
 
         tabAdsb = Button(this).apply { text = "ADS-B (aviones)"; setOnClickListener { selectTab(TAB_ADSB) } }
         tabAir = Button(this).apply { text = "Banda aérea (audio)"; setOnClickListener { selectTab(TAB_AIR) } }
@@ -91,6 +108,17 @@ class MainActivity : Activity() {
             addView(tabAdsb, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
             addView(tabAir, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         }
+        external = CheckBox(this).apply {
+            text = "Usar un driver externo (rtl_tcp) en vez del driver USB integrado"
+            textSize = 13f
+            isChecked = useExternal
+            setOnCheckedChangeListener { _, checked ->
+                useExternal = checked
+                prefs.edit().putBoolean(KEY_EXTERNAL, checked).apply()
+                radio.stop()
+                radio.start()
+            }
+        }
         val content = FrameLayout(this).apply {
             addView(adsbView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             addView(air, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
@@ -98,11 +126,13 @@ class MainActivity : Activity() {
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(tabBar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            addView(external, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(content, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         })
         selectTab(TAB_ADSB)
 
         val filter = IntentFilter().apply {
+            addAction(ACTION_USB_PERMISSION)
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         }
@@ -111,6 +141,28 @@ class MainActivity : Activity() {
         } else {
             registerReceiver(usbReceiver, filter)
         }
+    }
+
+    /** Elige el origen de IQ: driver USB integrado (por defecto) o servidor rtl_tcp externo. */
+    private fun createSource(): IqSource {
+        if (useExternal) return RtlTcpClient()
+        val device = RtlSdrDevice.find(usbManager)
+            ?: throw IOException("No se ve el RTL-SDR por USB (¿cable OTG? ¿alimentación?)")
+        if (!usbManager.hasPermission(device)) {
+            runOnUiThread { requestUsbPermission(device) }
+            throw IOException("Esperando el permiso USB…")
+        }
+        return UsbIqSource.open(usbManager, device) { Log.i(TAG, it) }
+    }
+
+    private fun requestUsbPermission(device: UsbDevice) {
+        if (permissionRequested) return
+        permissionRequested = true
+        val flags = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
+        val pending = PendingIntent.getBroadcast(
+            this, 0, Intent(ACTION_USB_PERMISSION).setPackage(packageName), flags
+        )
+        usbManager.requestPermission(device, pending)
     }
 
     private fun selectTab(t: Int) {
@@ -125,7 +177,7 @@ class MainActivity : Activity() {
         refresh()
     }
 
-    // Se conecta al driver rtl_tcp solo mientras la app está en primer plano.
+    // El receptor funciona solo mientras la app está en primer plano (el dongle queda libre al salir).
     override fun onResume() {
         super.onResume()
         radio.start()
@@ -153,11 +205,11 @@ class MainActivity : Activity() {
             ?: "RTL-SDR no visto por USB"
         val streaming = linkStatus == RadioReceiver.Status.STREAMING
         val link = when (linkStatus) {
-            RadioReceiver.Status.CONNECTING -> "Conectando con el driver rtl_tcp…"
+            RadioReceiver.Status.CONNECTING -> "Conectando…"
             RadioReceiver.Status.WAITING ->
-                "Sin driver rtl_tcp (${linkMessage ?: "sin respuesta"}). " +
-                    "Abre la app del driver RTL-SDR, pulsa Start y vuelve aquí."
-            RadioReceiver.Status.STREAMING -> "Driver rtl_tcp conectado"
+                "Sin datos: ${linkMessage ?: "sin respuesta"}" +
+                    if (useExternal) ". Abre la app del driver, pulsa Start y vuelve aquí." else ""
+            RadioReceiver.Status.STREAMING -> "Recibiendo por ${radio.sourceDescription}"
         }
         if (tab == TAB_AIR) {
             air.setLink("$dongle · $link", error = !streaming)
@@ -166,7 +218,7 @@ class MainActivity : Activity() {
         val text = if (streaming) {
             val aircraft = tracker.snapshot(now)
             val kb = radio.bytesReceived.get() / 1024
-            "$dongle\nRecibiendo: $kb kB · mensajes ADS-B: ${tracker.totalMessages} · " +
+            "$dongle\n$link · $kb kB · mensajes ADS-B: ${tracker.totalMessages} · " +
                 "aviones: ${aircraft.size} (${aircraft.count { it.lat != null }} en el mapa)"
         } else {
             "$dongle\n$link"
@@ -179,6 +231,9 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        const val TAG = "RtlSdrDriver"
+        const val KEY_EXTERNAL = "use_external_driver"
+        const val ACTION_USB_PERMISSION = "com.formiguer.rtlsdr.USB_PERMISSION"
         const val TAB_ADSB = 0
         const val TAB_AIR = 1
     }

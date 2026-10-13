@@ -16,16 +16,18 @@ import java.util.concurrent.ConcurrentLinkedQueue
 class RtlTcpClient(
     private val host: String = "127.0.0.1",
     private val port: Int = 1234,
-) {
+) : IqSource {
+    override val description: String get() = "driver externo rtl_tcp ($host:$port)"
+
     @Volatile
     private var socket: Socket? = null
     private val pending = ConcurrentLinkedQueue<ByteArray>()
 
-    fun setFrequency(hz: Int) = queue(CMD_FREQUENCY, hz)
-    fun setSampleRate(hz: Int) = queue(CMD_SAMPLE_RATE, hz)
-    fun setGainMode(manual: Boolean) = queue(CMD_GAIN_MODE, if (manual) 1 else 0)
-    fun setGain(tenthsDb: Int) = queue(CMD_GAIN, tenthsDb)
-    fun setAgcMode(on: Boolean) = queue(CMD_AGC_MODE, if (on) 1 else 0)
+    override fun setFrequency(hz: Int) = queue(CMD_FREQUENCY, hz)
+    override fun setSampleRate(hz: Int) = queue(CMD_SAMPLE_RATE, hz)
+    override fun setGainMode(manual: Boolean) = queue(CMD_GAIN_MODE, if (manual) 1 else 0)
+    override fun setGain(tenthsDb: Int) = queue(CMD_GAIN, tenthsDb)
+    override fun setAgcMode(on: Boolean) = queue(CMD_AGC_MODE, if (on) 1 else 0)
 
     private fun queue(cmd: Int, param: Int) {
         pending.add(
@@ -42,7 +44,7 @@ class RtlTcpClient(
      * conexión (IOException). [onReady] se llama tras la cabecera, antes de leer datos, para
      * que el llamante encole la configuración inicial.
      */
-    fun run(isActive: () -> Boolean, onReady: () -> Unit, onData: (ByteArray, Int) -> Unit) {
+    override fun run(isActive: () -> Boolean, onReady: () -> Unit, onData: (ByteArray, Int) -> Unit) {
         val s = Socket()
         socket = s
         try {
@@ -69,7 +71,7 @@ class RtlTcpClient(
         }
     }
 
-    fun close() {
+    override fun close() {
         try {
             socket?.close()
         } catch (_: IOException) {
