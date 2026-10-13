@@ -27,7 +27,7 @@ class RadarUploader(
     /** [baseUrl]: carpeta de la web (p. ej. http://servidor/swap_repo_v1); [key]: clave generada en el servidor. */
     data class Config(val baseUrl: String, val key: String) {
         /** El «código de conexión» que se copia desde el servidor: dirección y clave en un solo texto. */
-        fun toCode(): String = baseUrl.trim().trimEnd('/') + "|" + key.trim()
+        fun toCode(): String = if (baseUrl.trim().trimEnd('/') == DEFAULT_SERVER && Regex("^[0-9]{6}$").matches(key.trim())) key.trim() else baseUrl.trim().trimEnd('/') + "|" + key.trim()
     }
 
     class Result(val ok: Boolean, val ver: Boolean, val message: String, val aircraft: Int = 0)
@@ -116,6 +116,9 @@ class RadarUploader(
             c.readTimeout = 8000
             c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
+            // Algunos hostings gratuitos (p. ej. ByetHost) devuelven 403 a clientes sin aspecto de navegador
+            c.setRequestProperty("User-Agent", USER_AGENT)
+            c.setRequestProperty("Accept", "application/json, text/plain, */*")
             c.setRequestProperty("X-Requested-With", "swap-turnos")
             c.setRequestProperty("X-Radar-Time", ts.toString())
             c.setRequestProperty("X-Radar-Sig", sign(cfg.key, "$ts.$body"))
@@ -130,8 +133,10 @@ class RadarUploader(
                     Regex("\"aviones\":(\\d+)").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0, null,
                 )
             } else {
-                val err = Regex("\"error\":\"([^\"]*)\"").find(text)?.groupValues?.get(1) ?: "HTTP $code"
-                Raw(false, false, unescape(err), 0, serverTime)
+                val err = Regex("\"error\":\"([^\"]*)\"").find(text)?.groupValues?.get(1)
+                // Sin JSON de la API (p. ej. página de bloqueo del hosting): se enseña el código y un trozo del texto para poder diagnosticarlo
+                val msg = if (err != null) unescape(err) else "HTTP $code" + snippet(text)
+                Raw(false, false, msg, 0, serverTime)
             }
         } catch (e: IOException) {
             return Raw(false, false, e.message ?: e.javaClass.simpleName, 0, null)
@@ -141,15 +146,22 @@ class RadarUploader(
     }
 
     companion object {
-        /** Interpreta un «código de conexión» (dirección|clave); null si no tiene ese formato. */
+        /** Servidor de swap-turnos al que se envía cuando el código son solo 6 cifras. */
+        const val DEFAULT_SERVER = "http://blas.byethost7.com/swap_repo_v1"
+
+        /**
+         * Interpreta el código de conexión: 6 cifras (servidor por defecto) o, para otro servidor, «dirección|código».
+         * El código puede ser también una clave larga hexadecimal (16-64) de versiones anteriores. Null si no tiene formato válido.
+         */
         fun parseCode(code: String): Config? {
             val text = code.trim().replace("\\s".toRegex(), "")
+            if (Regex("^[0-9]{6}$").matches(text)) return Config(DEFAULT_SERVER, text)
             val cut = text.lastIndexOf('|')
             if (cut <= 0) return null
             val url = text.substring(0, cut).trimEnd('/')
             val key = text.substring(cut + 1)
             val okUrl = Regex("^https?://[^/\\s|]+(/[^\\s|]*)?$").matches(url)
-            val okKey = Regex("^[0-9a-fA-F]{16,64}$").matches(key)
+            val okKey = Regex("^[0-9]{6}$").matches(key) || Regex("^[0-9a-fA-F]{16,64}$").matches(key)
             return if (okUrl && okKey) Config(url, key.lowercase()) else null
         }
 
@@ -168,6 +180,14 @@ class RadarUploader(
                 else -> sb.append(ch)
             }
             return sb.append('"').toString()
+        }
+
+        const val USER_AGENT = "Mozilla/5.0 (Linux; Android 7.1.1; Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0 Mobile Safari/537.36 rtl-sdr-radar/1"
+
+        private fun snippet(text: String): String {
+            val t = text.replace(Regex("<script.*?</script>|<style.*?</style>|<[^>]*>", RegexOption.DOT_MATCHES_ALL), " ")
+                .replace(Regex("\\s+"), " ").trim()
+            return if (t.isEmpty()) " (respuesta vacía: la bloquea el hosting o un cortafuegos)" else " — " + t.take(90)
         }
 
         private fun unescape(s: String): String =

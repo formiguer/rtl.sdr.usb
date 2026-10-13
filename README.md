@@ -74,3 +74,7 @@ El botón 🛰 del mapa alterna entre el mapa de costas y la vista de satélite.
 [EOX](https://s2maps.eu), uso no comercial) no vienen en el APK: en *Ajustes → Satélite sin conexión* se pulsa **Descargar** una vez
 con internet y se guardan en la tablet (zoom 3–13 alrededor del aeropuerto de referencia, más detalle cuanto más cerca). Después se ven
 sin conexión. La descarga se puede cancelar y reanudar, y se puede borrar. En el visor web de swap-turnos el satélite se carga de internet.
+
+## Conexión con el servidor
+
+En *☁ Servidor* se escribe el **código de 6 cifras** que se elige en swap-turnos (RADAR → ☁ Tablet); no hace falta dirección (se usa la de `RadarUploader.DEFAULT_SERVER`; para otro servidor se admite `dirección|código`). La app se identifica con un User-Agent de navegador porque algunos hostings gratuitos devuelven 403 a clientes que no lo parecen, y si el servidor responde con una página que no es de la API, el mensaje de error muestra un trozo de su texto para poder diagnosticarlo.

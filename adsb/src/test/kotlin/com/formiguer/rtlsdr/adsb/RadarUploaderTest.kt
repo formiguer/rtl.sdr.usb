@@ -172,5 +172,29 @@ class RadarUploaderTest {
         assertEquals(null, RadarUploader.parseCode("http://servidor|corta"))            // clave inválida
         assertEquals(null, RadarUploader.parseCode("http://servidor|${key}zz"))         // no es hexadecimal
         assertEquals("http://127.0.0.1:8081", RadarUploader.parseCode("http://127.0.0.1:8081|$key")!!.baseUrl)
+        // código de 6 cifras: servidor por defecto, sin dirección
+        val six = RadarUploader.parseCode(" 123 456 ")!!
+        assertEquals(RadarUploader.DEFAULT_SERVER, six.baseUrl); assertEquals("123456", six.key); assertEquals("123456", six.toCode())
+        assertEquals(null, RadarUploader.parseCode("12345")); assertEquals(null, RadarUploader.parseCode("1234567")); assertEquals(null, RadarUploader.parseCode("12345a"))
+        assertEquals("999000", RadarUploader.parseCode("http://127.0.0.1:8081|999000")!!.key)
+    }
+
+    @Test
+    fun sendsBrowserLikeUserAgentAndShowsHostingBlockPages() {
+        val seen = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        val srv = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        srv.createContext("/") { ex ->
+            seen.set(ex.requestHeaders.getFirst("User-Agent"))
+            val body = "<html><body><h1>Forbidden</h1><script>x()</script>Access denied by host</body></html>".toByteArray()
+            ex.sendResponseHeaders(403, body.size.toLong()); ex.responseBody.use { it.write(body) }
+        }
+        srv.start()
+        try {
+            val up = RadarUploader(tracker(), { null }, { true })
+            val r = up.sendOnce(RadarUploader.Config("http://127.0.0.1:${srv.address.port}", "0123456789abcdef0123456789abcdef"))
+            assertTrue(!r.ok)
+            assertTrue(seen.get()!!.startsWith("Mozilla/5.0"), "User-Agent: ${seen.get()}")
+            assertTrue(r.message.startsWith("HTTP 403") && r.message.contains("Access denied by host") && !r.message.contains("<"), r.message)
+        } finally { srv.stop(0) }
     }
 }

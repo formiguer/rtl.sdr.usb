@@ -226,10 +226,10 @@ class MainActivity : Activity() {
     /** Ajustes del envío de aviones al servidor de swap-turnos: un único «código de conexión» que se copia desde el radar. */
     private fun showRadarDialog() {
         val code = EditText(this).apply {
-            hint = "Código de conexión"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            minLines = 2
-            maxLines = 4
+            hint = "Código de 6 cifras"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            // Para otro servidor se admite «dirección|código»; con 6 cifras se usa el servidor de siempre
+            filters = arrayOf(android.text.InputFilter.LengthFilter(200))
             setText(prefs.getString(KEY_RADAR_CODE, ""))
         }
         val on = CheckBox(this).apply {
@@ -239,7 +239,7 @@ class MainActivity : Activity() {
         val result = TextView(this).apply { textSize = 13f; setPadding(0, 16, 0, 0) }
         val help = TextView(this).apply {
             textSize = 13f
-            text = "En swap-turnos abre Más secciones → RADAR → ☁ Tablet, copia el código de conexión y pégalo aquí. " +
+            text = "Escribe el código de 6 cifras que elegiste en swap-turnos (Más secciones → RADAR → ☁ Tablet). " +
                 "Sin ese código nadie puede enviar aviones a tu servidor."
         }
         val box = LinearLayout(this).apply {
@@ -259,7 +259,7 @@ class MainActivity : Activity() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val text = code.text.toString().trim()
             if (text.isNotEmpty() && RadarUploader.parseCode(text) == null) {
-                result.text = "✖ Ese código no es válido. Cópialo entero desde swap-turnos."
+                result.text = "✖ El código son 6 cifras."
                 return@setOnClickListener
             }
             prefs.edit().putString(KEY_RADAR_CODE, text).putBoolean(KEY_RADAR_ON, on.isChecked && text.isNotEmpty()).apply()
@@ -268,7 +268,7 @@ class MainActivity : Activity() {
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
             val cfg = RadarUploader.parseCode(code.text.toString())
             if (cfg == null) {
-                result.text = "✖ Pega primero el código de conexión (cópialo entero desde swap-turnos)."
+                result.text = "✖ Escribe primero el código de 6 cifras."
                 return@setOnClickListener
             }
             result.text = "Probando…"
