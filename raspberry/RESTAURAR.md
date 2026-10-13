@@ -61,7 +61,9 @@ Ahí se ve (o se cambia por otro). Ese mismo código va en `radar-subir.ini` (`c
    cp radar-subir.ini.ejemplo radar-subir.ini
    nano radar-subir.ini     # pon tu código de 6 cifras en «codigo =» y revisa las URLs (abajo)
    chmod 600 radar-subir.ini
+   curl -L -o matriculas.bin https://raw.githubusercontent.com/formiguer/rtl.sdr.usb/main/app/src/main/assets/matriculas.bin
    ```
+   (`matriculas.bin` es la base de matrículas por código ICAO; sin ella los aviones salen sin matrícula en el radar.)
    `radar-subir.ini` correcto:
    ```
    [radar]
@@ -101,5 +103,5 @@ Ahí se ve (o se cambia por otro). Ese mismo código va en `radar-subir.ini` (`c
 - Las SD fallan: usa una «high endurance», apaga siempre con `sudo shutdown now` y guarda una SD de repuesto ya grabada.
 
 ## Archivos de esta carpeta
-- `radar-subir.py` · `radar-subir.ini.ejemplo` · `instalar.sh` — envío al radar (copia de `swap-turnos/tools/raspberry`).
+- `radar-subir.py` · `radar-subir.ini.ejemplo` · `instalar.sh` · `README.md` — envío al radar (copia de `swap-turnos/tools/raspberry`). La base de matrículas es `app/src/main/assets/matriculas.bin` de este mismo repositorio.
 - `inventario.sh` — vuelca la configuración de la Raspberry (sin contraseñas ni el código) para poder reconstruirla.

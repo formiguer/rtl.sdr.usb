@@ -16,6 +16,7 @@ import hmac
 import json
 import os
 import re
+import struct
 import subprocess
 import sys
 import time
@@ -42,6 +43,7 @@ def cargar_config(ruta):
         'url': s.get('url', '').strip().rstrip('/'),
         'codigo': s.get('codigo', '').strip(),
         'aircraft': s.get('aircraft_json', 'http://localhost/skyaware/data/aircraft.json').strip(),
+        'matriculas': s.get('matriculas', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matriculas.bin')).strip(),
         'estado': s.get('estado_url', '').strip(),
         'cookie': s.get('cookie_test', '').strip(),
         'nombre': s.get('nombre', 'Raspberry Pi').strip()[:40],
@@ -118,7 +120,36 @@ def numero(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-def convertir(a):
+class Matriculas:
+    """Matrículas por código ICAO (el mismo archivo matriculas.bin de la app de la tablet, formato MAT1):
+    cabecera «MAT1» + nº de registros (uint32) + registros de 11 bytes ordenados (3 de código + 8 de matrícula)."""
+    CAB, REG = 8, 11
+
+    def __init__(self, ruta):
+        with open(ruta, 'rb') as f:
+            self.d = f.read()
+        if self.d[:4] != b'MAT1' or len(self.d) < self.CAB:
+            raise ValueError('no es una base de matrículas MAT1')
+        self.n = struct.unpack_from('<I', self.d, 4)[0]
+        if len(self.d) < self.CAB + self.n * self.REG:
+            raise ValueError('base de matrículas incompleta')
+
+    def buscar(self, icao):
+        lo, hi = 0, self.n - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            o = self.CAB + mid * self.REG
+            k = int.from_bytes(self.d[o:o + 3], 'big')
+            if k < icao:
+                lo = mid + 1
+            elif k > icao:
+                hi = mid - 1
+            else:
+                return self.d[o + 3:o + self.REG].split(b'\0')[0].decode('ascii', 'replace') or None
+        return None
+
+
+def convertir(a, matriculas=None):
     """Un avión de dump1090/readsb → el formato de radar/subir (alt en ft, speed en kt, vr en ft/min, age en s)."""
     hexa = str(a.get('hex', '')).upper()
     lat, lon = numero(a.get('lat')), numero(a.get('lon'))
@@ -131,7 +162,7 @@ def convertir(a):
     return {
         'hex': hexa,
         'flight': (a.get('flight') or '').strip() or None,
-        'reg': (a.get('r') or '').strip() or None,
+        'reg': (a.get('r') or '').strip() or (matriculas.buscar(int(hexa, 16)) if matriculas and re.fullmatch(r'[0-9A-F]{6}', hexa) else None),
         'lat': lat, 'lon': lon,
         'alt': 0 if suelo else numero(alt),
         'speed': numero(a.get('gs', a.get('speed'))),
@@ -164,7 +195,7 @@ class Estado:
         return None if self.cambio is None else int(ahora - self.cambio)
 
 
-def construir(cfg, estado):
+def construir(cfg, estado, matriculas=None):
     if cfg['aircraft'].startswith(('http://', 'https://')):
         req = urllib.request.Request(cfg['aircraft'], headers={'User-Agent': 'radar-subir'})
         with urllib.request.urlopen(req, timeout=5) as r:
@@ -173,7 +204,7 @@ def construir(cfg, estado):
         with open(cfg['aircraft']) as f:
             data = json.load(f)
     raw = data.get('aircraft') or []
-    aviones = [x for x in (convertir(a) for a in raw) if x][:MAX_AVIONES]
+    aviones = [x for x in (convertir(a, matriculas) for a in raw) if x][:MAX_AVIONES]
     sistema = leer_estado_url(cfg['estado']) if cfg['estado'] else None
     if sistema is None:   # sin servicio de estado (o no contesta): se mide en esta misma Raspberry
         sistema = {'cpu': leer_cpu(), 'ram': leer_ram(), 'temp': leer_temp()}
@@ -261,6 +292,15 @@ def main():
     args = ap.parse_args()
     cfg = cargar_config(args.config)
     estado, reloj = Estado(), Reloj()
+    matriculas = None
+    if os.path.exists(cfg['matriculas']):
+        try:
+            matriculas = Matriculas(cfg['matriculas'])
+            log(f'Base de matrículas: {matriculas.n} aviones')
+        except Exception as e:
+            log(f'No se pudo leer la base de matrículas ({e}); se enviará sin matrículas')
+    else:
+        log('Sin base de matrículas (matriculas.bin): los aviones saldrán sin matrícula. Mira el README.')
     leer_cpu()   # primera lectura: fija la referencia para el % de CPU
     if args.probar:
         time.sleep(1)   # para que el envío de prueba ya lleve la CPU
@@ -268,7 +308,7 @@ def main():
     log(f'Enviando a {cfg["url"]} desde {cfg["aircraft"]}')
     while True:
         try:
-            payload = construir(cfg, estado)
+            payload = construir(cfg, estado, matriculas)
             if args.probar:
                 log(f'Aviones con posición: {len(payload["aviones"])} · sistema: {payload["sistema"]}')
                 for a in payload['aviones'][:5]:
