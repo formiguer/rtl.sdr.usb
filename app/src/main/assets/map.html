@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>html, body, #map { height: 100%; margin: 0; }</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  var map = L.map('map').setView([40.4, -3.7], 6);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  var markers = {};
+
+  // Fase 2 llamará a esta función con la lista de aviones decodificados:
+  // [{hex, flight, lat, lon, alt, speed, track}]
+  function updateAircraft(list) {
+    var seen = {};
+    list.forEach(function (a) {
+      if (a.lat == null || a.lon == null) return;
+      seen[a.hex] = true;
+      var label = (a.flight || a.hex) + '<br>' + (a.alt != null ? a.alt + ' ft' : '');
+      if (markers[a.hex]) {
+        markers[a.hex].setLatLng([a.lat, a.lon]).setPopupContent(label);
+      } else {
+        markers[a.hex] = L.marker([a.lat, a.lon]).addTo(map).bindPopup(label);
+      }
+    });
+    Object.keys(markers).forEach(function (hex) {
+      if (!seen[hex]) { map.removeLayer(markers[hex]); delete markers[hex]; }
+    });
+  }
+</script>
+</body>
+</html>
