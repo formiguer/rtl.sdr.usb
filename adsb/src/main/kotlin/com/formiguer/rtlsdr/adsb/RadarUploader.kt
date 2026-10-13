@@ -145,7 +145,7 @@ class RadarUploader(
             } else {
                 val err = Regex("\"error\":\"([^\"]*)\"").find(text)?.groupValues?.get(1)
                 // Sin JSON de la API (p. ej. página de bloqueo del hosting): se enseña el código y un trozo del texto para poder diagnosticarlo
-                val msg = if (err != null) unescape(err) else "HTTP $code" + snippet(text)
+                val msg = if (err != null) unescape(err) else "HTTP $code" + snippet(text) + diag(c, firstTry)
                 Raw(false, false, msg, 0, serverTime)
             }
         } catch (e: IOException) {
@@ -212,10 +212,20 @@ class RadarUploader(
             }
         }
 
+        /** Datos de la respuesta para diagnosticar bloqueos del hosting: servidor, redirección y si ya se usaba la cookie del reto. */
+        private fun diag(c: HttpURLConnection, firstTry: Boolean): String {
+            val parts = ArrayList<String>()
+            c.getHeaderField("Server")?.let { parts.add("servidor=$it") }
+            c.getHeaderField("Location")?.let { parts.add("redirige a $it") }
+            c.getHeaderField("Content-Type")?.let { parts.add("tipo=${it.take(30)}") }
+            parts.add(if (firstTry) "1.er intento" else "2.º intento con cookie")
+            return " [" + parts.joinToString(", ") + "]"
+        }
+
         private fun snippet(text: String): String {
             val t = text.replace(Regex("<script.*?</script>|<style.*?</style>|<[^>]*>", RegexOption.DOT_MATCHES_ALL), " ")
                 .replace(Regex("\\s+"), " ").trim()
-            return if (t.isEmpty()) " (respuesta vacía: la bloquea el hosting o un cortafuegos)" else " — " + t.take(90)
+            return if (t.isEmpty()) " (respuesta vacía: la bloquea el hosting o un cortafuegos)" else " — " + t.take(160)
         }
 
         private fun unescape(s: String): String =
