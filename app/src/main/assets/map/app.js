@@ -113,15 +113,25 @@
     bordersLayer = L.polyline(B.borders.map(swap), { color: '#b07aa8', weight: 1, dashArray: '5 4', interactive: false });
   }
   buildBase();
+  var SAT_ONLINE = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg';
+  var SAT_ATTR = 'Sentinel-2 cloudless &copy; <a href="https://s2maps.eu">EOX</a> (contiene datos modificados de Copernicus Sentinel 2020)';
+  var BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+  function satAvailable() { return !!(host && host.satInfo); }
   function applyBase() {
     if (osmLayer) { map.removeLayer(osmLayer); osmLayer = null; }
+    var photo = S.base === 'osm' || S.base === 'sat';
     if (S.base === 'osm') {
       osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(map);
       mapEl.style.background = '#dddddd';
+    } else if (S.base === 'sat') {
+      // En la tablet se leen las teselas guardadas (https://sat.local/...); en el navegador, directamente de internet.
+      osmLayer = L.tileLayer(satAvailable() ? 'https://sat.local/{z}/{x}/{y}.jpg' : SAT_ONLINE,
+        { maxNativeZoom: 13, maxZoom: 16, minZoom: 3, errorTileUrl: BLANK, attribution: SAT_ATTR }).addTo(map);
+      mapEl.style.background = '#1d2a35';
     } else {
       mapEl.style.background = '#cfe3f2';
     }
-    if (baseGroup) { if (S.base === 'osm') map.removeLayer(baseGroup); else if (!map.hasLayer(baseGroup)) baseGroup.addTo(map); }
+    if (baseGroup) { if (photo) map.removeLayer(baseGroup); else if (!map.hasLayer(baseGroup)) baseGroup.addTo(map); }
     if (bordersLayer) { if (S.showBorders && S.base !== 'osm') { if (!map.hasLayer(bordersLayer)) bordersLayer.addTo(map); } else map.removeLayer(bordersLayer); }
     mapEl.classList.toggle('noap', !S.showAirports);
   }
@@ -474,6 +484,7 @@
   }
   document.addEventListener('fullscreenchange', function () { fsOn = !!document.fullscreenElement; refreshButtons(); });
   function refreshButtons() {
+    var bb = document.getElementById('btn-base'); if (bb) bb.classList.toggle('on', S.base === 'sat');
     var b = document.getElementById('btn-fs'); if (b) { b.classList.toggle('on', fsOn); b.title = fsOn ? 'Salir de pantalla completa' : 'Pantalla completa'; }
   }
   var Bar = L.Control.extend({
@@ -486,6 +497,7 @@
       }
       btn('btn-set', '⚙', 'Ajustes', function () { openSettings(true); });
       btn('btn-list', '☰', 'Lista de aviones', function () { setPanel(!S.panel); });
+      btn('btn-base', '🛰', 'Cambiar entre mapa y satélite', function () { S.base = S.base === 'sat' ? 'offline' : 'sat'; applyAll(); });
       btn('btn-fs', '⛶', 'Pantalla completa', toggleFullscreen);
       btn('btn-fit', '◎', 'Centrar en ' + refName(), function () { fitRings(); });
       L.DomEvent.disableClickPropagation(div);
@@ -506,7 +518,7 @@
   }
   function applyAll(refit) {
     REF = findAirport(S.airport) || REF;
-    applyBase(); drawRings(); if (refit) fitRings(); redraw(); saveSettings();
+    applyBase(); drawRings(); if (refit) fitRings(); redraw(); refreshButtons(); saveSettings();
   }
   function buildSettings() {
     setEl = document.createElement('div'); setEl.id = 'settings';
@@ -590,7 +602,34 @@
     note('El avión seleccionado muestra siempre todos sus datos en el panel lateral.');
 
     h('Mapa');
-    sel('Fondo', function () { return S.base; }, [['offline', 'Sin conexión (costas y fronteras)'], ['osm', 'OpenStreetMap (necesita internet)']], function (v) { S.base = v; applyAll(); });
+    sel('Fondo', function () { return S.base; }, [['offline', 'Mapa sin conexión (costas y fronteras)'], ['sat', satAvailable() ? 'Satélite (descargado en la tablet)' : 'Satélite (necesita internet)'], ['osm', 'OpenStreetMap (necesita internet)']], function (v) { S.base = v; applyAll(); });
+    if (satAvailable()) {
+      h('Satélite sin conexión');
+      var st = document.createElement('div'); st.className = 'note'; body.appendChild(st);
+      var row = document.createElement('div'); body.appendChild(row);
+      function mk(txt, fn) { var b = document.createElement('button'); b.className = 'b'; b.textContent = txt; b.onclick = fn; row.appendChild(b); return b; }
+      var bDown = mk('Descargar zona de ' + refName(), function () {
+        if (confirm('Se descargarán imágenes de satélite alrededor de ' + refName() + ' (necesita internet; ocupa unas decenas de MB). ¿Continuar?')) {
+          try { host.satDownload(REF.lat, REF.lon); } catch (e) { /* sin puente */ }
+          setTimeout(upd, 300);
+        }
+      });
+      var bCan = mk('Cancelar', function () { try { host.satCancel(); } catch (e) { /* sin puente */ } });
+      var bClr = mk('Borrar', function () { if (confirm('¿Borrar las imágenes de satélite guardadas?')) { try { host.satClear(); } catch (e) { /* sin puente */ } upd(); } });
+      var tm = null;
+      function upd() {
+        var i = null; try { i = JSON.parse(host.satInfo()); } catch (e) { /* sin datos */ }
+        if (!i) return;
+        var mb = (i.bytes / 1048576).toFixed(1);
+        st.textContent = i.running ? 'Descargando… ' + i.done + ' / ' + i.total + (i.failed ? ' (' + i.failed + ' fallidas)' : '') + ' · ' + mb + ' MB guardados'
+          : (i.tiles ? i.tiles + ' imágenes guardadas (' + mb + ' MB)' + (i.failed ? ' · ' + i.failed + ' no se pudieron descargar; vuelve a pulsar Descargar para reintentar' : '') : 'Todavía no hay imágenes guardadas.');
+        bDown.disabled = i.running; bCan.disabled = !i.running; bClr.disabled = i.running || !i.tiles;
+        if (i.running && !tm) tm = setInterval(upd, 1000);
+        if (!i.running && tm) { clearInterval(tm); tm = null; if (S.base === 'sat') applyAll(); }
+      }
+      upd();
+      note('Conéctate a internet, pulsa «Descargar» una vez y después el satélite se ve sin conexión. Imágenes: Sentinel-2 cloudless de EOX (uso no comercial).');
+    }
     chkRow('Mostrar aeropuertos', function () { return S.showAirports; }, function (v) { S.showAirports = v; applyAll(); });
     chkRow('Mostrar fronteras', function () { return S.showBorders; }, function (v) { S.showBorders = v; applyAll(); });
     var reset = document.createElement('button'); reset.className = 'b'; reset.textContent = 'Restablecer todos los ajustes';

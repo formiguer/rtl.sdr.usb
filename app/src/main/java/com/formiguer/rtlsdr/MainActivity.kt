@@ -21,7 +21,10 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -34,6 +37,7 @@ import com.formiguer.rtlsdr.adsb.Mode
 import com.formiguer.rtlsdr.adsb.RadarUploader
 import com.formiguer.rtlsdr.adsb.RadioReceiver
 import com.formiguer.rtlsdr.adsb.RegistrationDb
+import com.formiguer.rtlsdr.adsb.SatelliteTiles
 import com.formiguer.rtlsdr.adsb.RtlTcpClient
 import java.io.IOException
 
@@ -52,6 +56,7 @@ class MainActivity : Activity() {
     private var fullscreen = false
 
     private val tracker = AircraftTracker()
+    private val satellite by lazy { SatelliteTiles(java.io.File(filesDir, "satelite")) }
     private val audioOut = AudioOut()
     private lateinit var radio: RadioReceiver
     private lateinit var uploader: RadarUploader
@@ -125,6 +130,20 @@ class MainActivity : Activity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             addJavascriptInterface(MapBridge(), "AndroidBridge")
+            // Las imágenes de satélite guardadas se sirven como https://sat.local/z/x/y.jpg
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                    val u = request.url
+                    if (u.host != "sat.local") return null
+                    val p = u.pathSegments
+                    val f = if (p.size == 3) {
+                        val z = p[0].toIntOrNull(); val x = p[1].toIntOrNull(); val y = p[2].removeSuffix(".jpg").toIntOrNull()
+                        if (z != null && x != null && y != null) satellite.file(z, x, y) else null
+                    } else null
+                    return if (f != null && f.isFile) WebResourceResponse("image/jpeg", null, f.inputStream())
+                    else WebResourceResponse("image/jpeg", null, 404, "Not Found", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
+                }
+            }
             loadUrl("file:///android_asset/map/index.html")
         }
         adsbView = LinearLayout(this).apply {
@@ -271,6 +290,27 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun saveSettings(json: String) {
             prefs.edit().putString(KEY_MAP_SETTINGS, json).apply()
+        }
+
+        @JavascriptInterface
+        fun satInfo(): String {
+            val (n, bytes) = satellite.stored()
+            return "{\"tiles\":$n,\"bytes\":$bytes,\"running\":${satellite.running},\"done\":${satellite.done}," +
+                "\"total\":${satellite.total},\"failed\":${satellite.failed}}"
+        }
+
+        @JavascriptInterface
+        fun satDownload(lat: Double, lon: Double) {
+            if (satellite.running) return
+            Thread { satellite.download(SatelliteTiles.plan(lat, lon)) }.start()
+        }
+
+        @JavascriptInterface
+        fun satCancel() = satellite.cancel()
+
+        @JavascriptInterface
+        fun satClear() {
+            if (!satellite.running) satellite.clear()
         }
 
         @JavascriptInterface

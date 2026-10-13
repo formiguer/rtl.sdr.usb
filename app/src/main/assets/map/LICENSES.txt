@@ -3,3 +3,4 @@ Natural Earth (costas y fronteras, vía el paquete npm world-atlas) — dominio 
 OurAirports (aeropuertos) — dominio público. https://ourairports.com
 Mapa base opcional: © colaboradores de OpenStreetMap (ODbL), solo si se activa en Ajustes.
 Matrículas (assets/matriculas.bin, generado con tools/matriculas/build.py) — base tar1090-db / Mictronics, GPL-2.0. https://github.com/wiedehopf/tar1090-db
+Imágenes de satélite (descarga opcional): Sentinel-2 cloudless 2020 de EOX IT Services GmbH, contiene datos modificados de Copernicus Sentinel. Licencia CC BY-NC 4.0 (uso no comercial). https://s2maps.eu

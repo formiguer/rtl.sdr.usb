@@ -22,6 +22,9 @@ await ctx.addInitScript(() => {
     loadSettings: () => window.__bridge.saved,
     saveSettings: (j) => { window.__bridge.saved = j; },
     setFullscreen: (on) => { window.__bridge.fs.push(on); },
+    satInfo: () => JSON.stringify({ tiles: 12, bytes: 3145728, running: false, done: 0, total: 0, failed: 0 }),
+    satDownload: (la, lo) => { window.__bridge.sat = [la, lo]; },
+    satCancel: () => {}, satClear: () => { window.__bridge.cleared = true; },
   };
 });
 
@@ -29,6 +32,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+await ctx.route('https://sat.local/**', (r) => r.fulfill({ status: 200, contentType: 'image/gif', body: Buffer.from('R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==', 'base64') }));
 await page.goto(page_url);
 await page.waitForFunction(() => window.RadarMap);
 
@@ -63,6 +67,22 @@ check('la fila muestra distancia en km', /km/.test(firstRow), firstRow);
 const regTxt = await page.textContent('#list .row[data-hex="A1B2C3"] .l1 .reg').catch(() => null);
 check('la lista muestra la matrícula junto al indicativo', regTxt === 'PH-BXA', String(regTxt));
 check('sin matrícula no hay etiqueta vacía', (await page.$$('#list .row[data-hex="34AABB"] .reg')).length === 0);
+
+// 2c) satélite sin conexión
+await page.click('#btn-base');
+const satUrl = await page.$$eval('.leaflet-tile-pane img', (is) => is.map((i) => i.src).filter((u) => u.startsWith('https://sat.local/')).length);
+check('el botón 🛰 cambia a satélite y pide las teselas guardadas (sat.local)', satUrl > 0, String(satUrl));
+check('el botón queda marcado', await page.$eval('#btn-base', (e) => e.classList.contains('on')));
+await page.click('#btn-base');
+check('segundo clic vuelve al mapa sin conexión', (await page.$$('.leaflet-tile-pane img')).length === 0);
+await page.click('#btn-set');
+const satTxt = await page.textContent('#settings');
+check('ajustes: muestra imágenes guardadas', /12 imágenes guardadas \(3\.0 MB\)/.test(satTxt), satTxt.slice(0, 0));
+page.once('dialog', (d) => d.accept());
+await page.click('#settings button:has-text("Descargar zona")');
+const sd = await page.evaluate(() => window.__bridge.sat);
+check('Descargar pide la zona del aeropuerto de referencia', Array.isArray(sd) && Math.abs(sd[0] - 39.55) < 0.1 && Math.abs(sd[1] - 2.73) < 0.1, JSON.stringify(sd));
+await page.click('#settings .close, #settings [aria-label=Cerrar]').catch(() => {});
 
 // 3) filtro tierra / aire
 await page.click('#btn-set');

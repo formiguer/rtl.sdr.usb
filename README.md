@@ -67,3 +67,10 @@ GPL-2.0-or-later (ver `LICENSE`): el driver USB es un port de librtlsdr / tuner_
 La app lleva incluida una base offline de matrículas por código ICAO (`app/src/main/assets/matriculas.bin`, ~570 000 aviones, datos de
 [tar1090-db](https://github.com/wiedehopf/tar1090-db)). Se muestra junto al indicativo en el panel lateral, en la ficha del avión y,
 opcionalmente, en la etiqueta del mapa. Se regenera con `python3 tools/matriculas/build.py`.
+
+## Satélite sin conexión
+
+El botón 🛰 del mapa alterna entre el mapa de costas y la vista de satélite. Las imágenes (Sentinel-2 sin nubes de
+[EOX](https://s2maps.eu), uso no comercial) no vienen en el APK: en *Ajustes → Satélite sin conexión* se pulsa **Descargar** una vez
+con internet y se guardan en la tablet (zoom 3–13 alrededor del aeropuerto de referencia, más detalle cuanto más cerca). Después se ven
+sin conexión. La descarga se puede cancelar y reanudar, y se puede borrar. En el visor web de swap-turnos el satélite se carga de internet.
