@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.graphics.Color
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -116,6 +117,7 @@ class MainActivity : Activity() {
             },
             isAdsbActive = { tab == TAB_ADSB && linkStatus == RadioReceiver.Status.STREAMING },
             stationName = { "Tablet" },
+            battery = ::readBattery,
         ) { text, error ->
             radarStatus = text
             radarError = error
@@ -199,6 +201,16 @@ class MainActivity : Activity() {
         } else {
             registerReceiver(usbReceiver, filter)
         }
+    }
+
+    /** Nivel de batería y si está cargando (el intent «pegajoso» de Android, sin permisos). */
+    private fun readBattery(): RadarUploader.Battery? {
+        val i = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
+        val level = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = i.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        if (level < 0 || scale <= 0) return null
+        val st = i.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        return RadarUploader.Battery(level * 100 / scale, st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL)
     }
 
     /** Elige el origen de IQ: driver USB integrado (por defecto) o servidor rtl_tcp externo. */
