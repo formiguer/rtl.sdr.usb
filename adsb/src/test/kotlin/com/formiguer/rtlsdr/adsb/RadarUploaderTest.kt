@@ -231,4 +231,22 @@ class RadarUploaderTest {
             assertTrue(r2.ok && urls.size == 3, urls.toString())
         } finally { srv.stop(0) }
     }
+
+    @Test
+    fun sendsBatteryLevelInBothModes() {
+        val key = "0123456789abcdef0123456789abcdef"
+        val srv = FakeSwapServer(key)
+        try {
+            val up = RadarUploader(tracker(), { null }, { true }, { "PMI" }, battery = { RadarUploader.Battery(17, false) })
+            val cfg = RadarUploader.Config("http://127.0.0.1:${srv.port}/swap/", key)
+            assertTrue(up.sendOnce(cfg, true).ok)
+            assertTrue(up.sendOnce(cfg, false).ok)
+            val bodies = srv.requests.map { it.body }
+            assertTrue(bodies.size == 2 && bodies.all { it.contains("\"bateria\":17,\"cargando\":false") }, bodies.toString())
+            val noBat = RadarUploader(tracker(), { null }, { true })
+            srv.requests.clear()
+            noBat.sendOnce(cfg, false)
+            assertTrue(!srv.requests.last().body.contains("bateria"))
+        } finally { srv.stop() }
+    }
 }

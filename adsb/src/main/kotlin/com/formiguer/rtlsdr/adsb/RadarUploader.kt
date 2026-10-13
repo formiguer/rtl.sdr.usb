@@ -20,12 +20,16 @@ class RadarUploader(
     private val config: () -> Config?,
     private val isAdsbActive: () -> Boolean,
     private val stationName: () -> String = { "" },
+    /** Batería de la tablet (nivel 0-100 y si está cargando); null si no se conoce. El servidor avisa si baja del 20 %. */
+    private val battery: () -> Battery? = { null },
     private val activeMs: Long = 2_000,
     private val idleMs: Long = 10_000,
     private val pauseMs: Long = 15_000,
     private val clock: () -> Long = System::currentTimeMillis,
     private val onStatus: (String, Boolean) -> Unit = { _, _ -> },
 ) {
+    data class Battery(val level: Int, val charging: Boolean)
+
     /** [baseUrl]: carpeta de la web (p. ej. http://servidor/swap_repo_v1); [key]: clave generada en el servidor. */
     data class Config(val baseUrl: String, val key: String) {
         /** El «código de conexión» que se copia desde el servidor: dirección y clave en un solo texto. */
@@ -89,11 +93,12 @@ class RadarUploader(
     /** Un envío (también sirve para probar la conexión desde los ajustes). */
     fun sendOnce(cfg: Config, adsb: Boolean = isAdsbActive()): Result {
         val now = clock()
+        val bat = battery()?.let { ",\"bateria\":${it.level.coerceIn(0, 100)},\"cargando\":${it.charging}" } ?: ""
         val body = if (adsb) {
             "{\"estacion\":{\"nombre\":${jsonString(stationName())},\"mensajes\":${tracker.totalMessages},\"ultimo_s\":${tracker.secondsSinceLastMessage(now) ?: "null"}}," +
-                "\"aviones\":${tracker.toJson(now)}}"
+                "\"aviones\":${tracker.toJson(now)}$bat}"
         } else {
-            "{\"estado\":\"pausa\"}"
+            "{\"estado\":\"pausa\"$bat}"
         }
         var res = post(cfg, body)
         val serverTime = res.serverTime

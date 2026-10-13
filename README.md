@@ -80,3 +80,7 @@ sin conexión. La descarga se puede cancelar y reanudar, y se puede borrar. En e
 En *☁ Servidor* se escribe el **código de 6 cifras** que se elige en swap-turnos (RADAR → ☁ Tablet); no hace falta dirección (se usa la de `RadarUploader.DEFAULT_SERVER`; para otro servidor se admite `dirección|código`). La app se identifica con un User-Agent de navegador porque algunos hostings gratuitos devuelven 403 a clientes que no lo parecen, y si el servidor responde con una página que no es de la API, el mensaje de error muestra un trozo de su texto para poder diagnosticarlo.
 
 Si el hosting (ByetHost/iFastNet) contesta con su página «necesita JavaScript», la app calcula sola la cookie `__test` de ese reto (AES-128-CBC) y reintenta; la recuerda para los envíos siguientes.
+
+## Batería
+
+Cada envío al servidor incluye el nivel de batería de la tablet y si está cargando. En swap-turnos (RADAR) el administrador general lo ve en un indicador, y PMI-BOT avisa en la sala AVISOS cuando baja del 20 % sin cargar.
