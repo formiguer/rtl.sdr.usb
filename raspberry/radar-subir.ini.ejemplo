@@ -5,6 +5,9 @@ url = http://blas.byethost7.com/swap_repo_v1/
 codigo = 000000
 # Donde tu Raspberry ve el JSON de aviones (el mismo que lee tu radar local)
 aircraft_json = http://localhost/skyaware/data/aircraft.json
+# Base de matrículas por código ICAO (la misma de la app de la tablet). Si está junto al script con el nombre
+# matriculas.bin no hace falta poner nada; descárgala como indica el README.
+# matriculas = /home/pi/radar-subir/matriculas.bin
 # (Opcional) servicio de estado que da CPU/RAM/temperatura, p. ej. http://192.168.0.192:5050/status
 # Si lo dejas vacío, se miden en la Raspberry donde corre el script.
 estado_url =
