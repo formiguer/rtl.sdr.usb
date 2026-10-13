@@ -3,17 +3,38 @@ package com.formiguer.rtlsdr
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 
-/** Identifica dongles RTL2832U (Realtek) entre los dispositivos USB conectados. */
+/** Identifica dongles RTL2832U entre los dispositivos USB conectados. */
 object RtlSdrDevice {
-    private const val VENDOR_REALTEK = 0x0bda
-    private val PRODUCT_IDS = setOf(0x2838, 0x2832)
+    // Pares vendor:product conocidos de librtlsdr (known_devices).
+    private val KNOWN_IDS = setOf(
+        0x0bda to 0x2832, 0x0bda to 0x2838, 0x0413 to 0x6680, 0x0413 to 0x6f0f,
+        0x0458 to 0x707f, 0x0ccd to 0x00a9, 0x0ccd to 0x00b3, 0x0ccd to 0x00b4,
+        0x0ccd to 0x00b5, 0x0ccd to 0x00b7, 0x0ccd to 0x00b8, 0x0ccd to 0x00b9,
+        0x0ccd to 0x00c0, 0x0ccd to 0x00c6, 0x0ccd to 0x00d3, 0x0ccd to 0x00d7,
+        0x0ccd to 0x00e0, 0x1554 to 0x5020, 0x15f4 to 0x0131, 0x15f4 to 0x0133,
+        0x185b to 0x0620, 0x185b to 0x0650, 0x185b to 0x0680, 0x1b80 to 0xd393,
+        0x1b80 to 0xd394, 0x1b80 to 0xd395, 0x1b80 to 0xd397, 0x1b80 to 0xd398,
+        0x1b80 to 0xd39d, 0x1b80 to 0xd3a4, 0x1b80 to 0xd3a8, 0x1b80 to 0xd3af,
+        0x1b80 to 0xd3b0, 0x1d19 to 0x1101, 0x1d19 to 0x1102, 0x1d19 to 0x1103,
+        0x1d19 to 0x1104, 0x1f4d to 0xa803, 0x1f4d to 0xb803, 0x1f4d to 0xc803,
+        0x1f4d to 0xd286, 0x1f4d to 0xd803,
+    )
 
-    fun isRtlSdr(device: UsbDevice): Boolean =
-        device.vendorId == VENDOR_REALTEK && device.productId in PRODUCT_IDS
+    fun isRtlSdr(device: UsbDevice): Boolean = (device.vendorId to device.productId) in KNOWN_IDS
 
     fun find(manager: UsbManager): UsbDevice? =
         manager.deviceList.values.firstOrNull(::isRtlSdr)
 
     fun describe(device: UsbDevice): String =
         "%04x:%04x".format(device.vendorId, device.productId)
+
+    /** Lista de todo lo que ve el puerto USB, para diagnosticar. */
+    fun listAll(manager: UsbManager): String {
+        val devices = manager.deviceList.values
+        if (devices.isEmpty()) return "La tablet no ve ningún dispositivo USB."
+        return devices.joinToString("\n") { d ->
+            val name = try { d.productName ?: "?" } catch (e: SecurityException) { "?" }
+            "• ${describe(d)} $name"
+        }
+    }
 }

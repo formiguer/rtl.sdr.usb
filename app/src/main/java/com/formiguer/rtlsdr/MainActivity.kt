@@ -84,7 +84,10 @@ class MainActivity : Activity() {
     private fun refreshDevice() {
         val device = RtlSdrDevice.find(usbManager)
         when {
-            device == null -> setStatus("RTL-SDR no detectado. Conéctalo con el cable OTG.", error = true)
+            device == null -> setStatus(
+                "RTL-SDR no detectado. Dispositivos USB vistos:\n" + RtlSdrDevice.listAll(usbManager),
+                error = true
+            )
             !usbManager.hasPermission(device) -> {
                 setStatus("RTL-SDR ${RtlSdrDevice.describe(device)} detectado, pidiendo permiso…")
                 requestPermission(device)
