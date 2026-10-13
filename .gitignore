@@ -5,3 +5,4 @@ local.properties
 *.iml
 *.apk
 captures/
+tests/map-ui/out/

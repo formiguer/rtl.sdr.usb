@@ -29,6 +29,16 @@ el comportamiento real del dongle en cada tablet.
 
 Necesitas antena para 1090 MHz (ADS-B) y otra de VHF (banda aérea), y vista despejada.
 
+## Mapa de aviones
+Funciona **sin conexión** (Leaflet, costas, fronteras y 245 aeropuertos van dentro de la app, ver `app/src/main/assets/map/`).
+Botones del mapa: ⚙ ajustes, ☰ lista, ⛶ pantalla completa, ◎ centrar.
+- **Ajustes:** unidades (km / millas / millas náuticas; ft / m / FL; kt / km/h / mph; ft/min / m/s), número y distancia de los anillos,
+  aeropuerto de referencia (por IATA u OACI), estelas (con duración), filtro aire / tierra / todos, qué datos se ven junto a cada avión
+  (siempre o solo en el seleccionado) y fondo (sin conexión u OpenStreetMap).
+- **Lista lateral** ordenada por cercanía al aeropuerto; al tocar un avión se muestra su ficha completa.
+- **En tierra:** se decodifican los mensajes de superficie del ADS-B (posición, velocidad y rumbo de los aviones que ruedan).
+- Los ajustes se guardan en la tablet. Prueba de la interfaz: `node tests/map-ui/map-ui.mjs` (necesita Playwright).
+
 ## Pestaña "Banda aérea"
 Receptor AM de toda la banda aeronáutica (118.000–136.990 MHz, canales de 25 y 8,33 kHz):
 - Sintonía manual (teclear frecuencia, pasos de 25 kHz u 8,33 kHz, ±1 MHz), memorias, volumen, squelch y ganancia.

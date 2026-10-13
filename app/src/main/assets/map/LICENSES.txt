@@ -1,0 +1,4 @@
+Leaflet 1.9.4 — BSD 2-Clause, © Vladimir Agafonkin, © CloudMade. https://leafletjs.com
+Natural Earth (costas y fronteras, vía el paquete npm world-atlas) — dominio público. https://www.naturalearthdata.com
+OurAirports (aeropuertos) — dominio público. https://ourairports.com
+Mapa base opcional: © colaboradores de OpenStreetMap (ODbL), solo si se activa en Ajustes.

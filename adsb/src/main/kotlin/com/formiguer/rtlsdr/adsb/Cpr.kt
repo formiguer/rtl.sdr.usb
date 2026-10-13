@@ -57,4 +57,61 @@ object Cpr {
         if (lon >= 180) lon -= 360
         return lat to lon
     }
+
+    private fun pickQuadrantLat(rlat: Double, ref: Double): Double {
+        var best = rlat
+        for (k in -2..2) {
+            val c = rlat + 90.0 * k
+            if (c < -90.0 || c > 90.0) continue
+            if (abs(c - ref) < abs(best - ref) || best < -90.0 || best > 90.0) best = c
+        }
+        return best
+    }
+
+    private fun pickQuadrantLon(lon: Double, ref: Double): Double {
+        var best = lon
+        for (k in -8..8) {
+            val c = lon + 90.0 * k
+            if (c <= -180.0 || c > 180.0) continue
+            if (abs(c - ref) < abs(best - ref) || best <= -180.0 || best > 180.0) best = c
+        }
+        return best
+    }
+
+    /**
+     * Decodificación global de posición en superficie. Las zonas son de 90°, así que la solución
+     * es ambigua en cuadrantes: se elige la más cercana a la posición de referencia (el aeropuerto).
+     */
+    fun globalSurface(
+        evenLat: Int, evenLon: Int, oddLat: Int, oddLon: Int, latestIsOdd: Boolean,
+        refLat: Double, refLon: Double,
+    ): Pair<Double, Double>? {
+        val lat0 = evenLat / SCALE
+        val lat1 = oddLat / SCALE
+        val lon0 = evenLon / SCALE
+        val lon1 = oddLon / SCALE
+
+        val j = floor(59 * lat0 - 60 * lat1 + 0.5).toInt()
+        val latE = pickQuadrantLat((90.0 / 60) * (mod(j, 60) + lat0), refLat)
+        val latO = pickQuadrantLat((90.0 / 59) * (mod(j, 59) + lat1), refLat)
+        if (latE < -90 || latE > 90 || latO < -90 || latO > 90) return null
+        if (nl(latE) != nl(latO)) return null
+
+        val lat: Double
+        val lon: Double
+        if (!latestIsOdd) {
+            val n = nl(latE)
+            val ni = max(n, 1)
+            val m = floor(lon0 * (n - 1) - lon1 * n + 0.5).toInt()
+            lon = (90.0 / ni) * (mod(m, ni) + lon0)
+            lat = latE
+        } else {
+            val n = nl(latO)
+            val ni = max(n - 1, 1)
+            val m = floor(lon0 * (n - 1) - lon1 * n + 0.5).toInt()
+            lon = (90.0 / ni) * (mod(m, ni) + lon1)
+            lat = latO
+        }
+        return lat to pickQuadrantLon(lon, refLon)
+    }
 }

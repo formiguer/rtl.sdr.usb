@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.webkit.JavascriptInterface
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -41,6 +42,9 @@ class MainActivity : Activity() {
     private lateinit var tabAdsb: Button
     private lateinit var tabAir: Button
     private lateinit var external: CheckBox
+    private lateinit var chrome: LinearLayout
+    private lateinit var prefs: android.content.SharedPreferences
+    private var fullscreen = false
 
     private val tracker = AircraftTracker()
     private val audioOut = AudioOut()
@@ -71,7 +75,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
-        val prefs = getPreferences(Context.MODE_PRIVATE)
+        prefs = getPreferences(Context.MODE_PRIVATE)
         useExternal = prefs.getBoolean(KEY_EXTERNAL, false)
 
         radio = RadioReceiver(
@@ -92,7 +96,8 @@ class MainActivity : Activity() {
         map = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            loadUrl("file:///android_asset/map.html")
+            addJavascriptInterface(MapBridge(), "AndroidBridge")
+            loadUrl("file:///android_asset/map/index.html")
         }
         adsbView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -123,10 +128,14 @@ class MainActivity : Activity() {
             addView(adsbView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             addView(air, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         }
-        setContentView(LinearLayout(this).apply {
+        chrome = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(tabBar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(external, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        }
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(chrome, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(content, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         })
         selectTab(TAB_ADSB)
@@ -165,7 +174,47 @@ class MainActivity : Activity() {
         usbManager.requestPermission(device, pending)
     }
 
+    /** Puente con el mapa web: ajustes persistentes y pantalla completa. */
+    private inner class MapBridge {
+        @JavascriptInterface
+        fun loadSettings(): String? = prefs.getString(KEY_MAP_SETTINGS, null)
+
+        @JavascriptInterface
+        fun saveSettings(json: String) {
+            prefs.edit().putString(KEY_MAP_SETTINGS, json).apply()
+        }
+
+        @JavascriptInterface
+        fun setFullscreen(on: Boolean) {
+            runOnUiThread { applyFullscreen(on) }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyFullscreen(on: Boolean) {
+        fullscreen = on
+        chrome.visibility = if (on) View.GONE else View.VISIBLE
+        status.visibility = if (on) View.GONE else View.VISIBLE
+        window.decorView.systemUiVisibility = if (on) {
+            View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        } else {
+            View.SYSTEM_UI_FLAG_VISIBLE
+        }
+    }
+
+    // La tecla Atrás sale primero de la pantalla completa del mapa
+    override fun onBackPressed() {
+        if (fullscreen) {
+            applyFullscreen(false)
+            map.evaluateJavascript("if (window.RadarMap) RadarMap.setFullscreenState(false);", null)
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     private fun selectTab(t: Int) {
+        if (fullscreen) applyFullscreen(false)
         tab = t
         adsbView.visibility = if (t == TAB_ADSB) View.VISIBLE else View.GONE
         air.visibility = if (t == TAB_AIR) View.VISIBLE else View.GONE
@@ -233,6 +282,7 @@ class MainActivity : Activity() {
     private companion object {
         const val TAG = "RtlSdrDriver"
         const val KEY_EXTERNAL = "use_external_driver"
+        const val KEY_MAP_SETTINGS = "map_settings"
         const val ACTION_USB_PERMISSION = "com.formiguer.rtlsdr.USB_PERMISSION"
         const val TAB_ADSB = 0
         const val TAB_AIR = 1
