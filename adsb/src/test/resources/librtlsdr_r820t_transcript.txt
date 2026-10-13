@@ -1,0 +1,341 @@
+OUT rt=40 req=0 val=2000 idx=0110 len=1 <- 09
+OUT rt=40 req=0 val=2000 idx=0110 len=1 <- 09
+OUT rt=40 req=0 val=2158 idx=0110 len=2 <- 00 02
+OUT rt=40 req=0 val=2148 idx=0110 len=2 <- 10 02
+OUT rt=40 req=0 val=300b idx=0210 len=1 <- 22
+OUT rt=40 req=0 val=3000 idx=0210 len=1 <- e8
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 14
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1520 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1620 idx=0011 len=2 <- 00 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1620 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1720 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1820 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1920 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1a20 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1b20 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1c20 idx=0011 len=1 <- ca
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1d20 idx=0011 len=1 <- dc
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1e20 idx=0011 len=1 <- d7
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1f20 idx=0011 len=1 <- d8
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2020 idx=0011 len=1 <- e0
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2120 idx=0011 len=1 <- f2
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2220 idx=0011 len=1 <- 0e
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2320 idx=0011 len=1 <- 35
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2420 idx=0011 len=1 <- 06
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2520 idx=0011 len=1 <- 50
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2620 idx=0011 len=1 <- 9c
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2720 idx=0011 len=1 <- 0d
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2820 idx=0011 len=1 <- 71
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2920 idx=0011 len=1 <- 11
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2a20 idx=0011 len=1 <- 14
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2b20 idx=0011 len=1 <- 71
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2c20 idx=0011 len=1 <- 74
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2d20 idx=0011 len=1 <- 19
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2e20 idx=0011 len=1 <- 41
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=2f20 idx=0011 len=1 <- a5
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1920 idx=0010 len=1 <- 05
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=9320 idx=0011 len=1 <- f0
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=9420 idx=0011 len=1 <- 0f
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1120 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0420 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=6120 idx=0010 len=1 <- 60
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0620 idx=0010 len=1 <- 80
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=b120 idx=0011 len=1 <- 1b
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0d20 idx=0010 len=1 <- 83
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=00c8 idx=0610 len=1 <- 02
+IN  rt=c0 req=0 val=00c8 idx=0600 len=1 -> 00
+OUT rt=40 req=0 val=00c6 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=00c6 idx=0600 len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=1 -> 69
+OUT rt=40 req=0 val=b120 idx=0011 len=1 <- 1a
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0820 idx=0010 len=1 <- 4d
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1920 idx=0011 len=1 <- 38
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1a20 idx=0011 len=1 <- 11
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1b20 idx=0011 len=1 <- 12
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1520 idx=0011 len=1 <- 01
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 05 83 32 75 c0 40 d6 6c
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 0c f5 63 75 68 6c 83 80
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 13 00 0f 00 c0 30 48 cc
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 1a 60 00 54 ae 4a c0 00
+OUT rt=40 req=0 val=0034 idx=0610 len=3 <- 21 00 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0c f0
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 13 31
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1d 86
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0f 6c
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 10 ac 83 80 31 84 72 1c
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=3 -> 69 00 0a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 68
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0b 7c
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0b 6c
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0f 68
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0a d5
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0b 6b
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 06 12
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1e 6a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 03
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1f 40
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 19 ec
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1d c5
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1c 24
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0d 53
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 11 bb
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1c 20
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 78
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1d dd
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1c 24
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1e 6e
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 68
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- tuner=5
+--- set_sample_rate 2000000
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0a c5
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0b af
+OUT rt=40 req=0 val=1920 idx=0011 len=1 <- 3c
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1a20 idx=0011 len=1 <- 63
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1b20 idx=0011 len=1 <- 8f
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 17 38
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 2a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1b df
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 10 a4
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 22
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 10 24 bb 80 31 7e 72 9c
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=3 -> 69 00 0a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 2a
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=9f20 idx=0011 len=2 <- 03 99
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=a120 idx=0011 len=2 <- 99 98
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=3f20 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=3e20 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 14
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- gain mode manual
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 13
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 07 65
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=4 -> 69 00 0a 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0c 68
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 10
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 07 60
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- gain 496
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=4 -> 69 00 0a 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 1f
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 07 6e
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- agc off
+OUT rt=40 req=0 val=1920 idx=0010 len=1 <- 05
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- center freq 1090000000
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 17 30
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 68
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1b 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 60
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 10 24 bb 80 31 06 55 e7
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=3 -> 69 00 0a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 68
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- reset buffer
+OUT rt=40 req=0 val=2148 idx=0110 len=2 <- 10 02
+OUT rt=40 req=0 val=2148 idx=0110 len=2 <- 00 00
+--- airband: rate 1200000
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0b eb
+OUT rt=40 req=0 val=1920 idx=0011 len=1 <- 3c
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1a20 idx=0011 len=1 <- 38
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=1b20 idx=0011 len=1 <- e4
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 60
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 10 24 bb 80 31 06 00 e8
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=3 -> 69 00 0a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 68
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=9f20 idx=0011 len=2 <- 06 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=a120 idx=0011 len=2 <- 00 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=3f20 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=3e20 idx=0011 len=1 <- 00
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 14
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- gain 402
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=4 -> 69 00 0a 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 1b
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 07 6b
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- freq 118300000
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 2a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1b 24
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 22
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 10 84 bb 80 31 05 55 55
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=3 -> 69 00 0a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 2a
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- freq 131725000
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 22
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 10 84 bb 80 31 06 00 10
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=3 -> 69 00 0a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 2a
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- freq 136450000
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 22
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=5 -> 69 00 0a 00 a8
+OUT rt=40 req=0 val=0034 idx=0610 len=8 <- 10 84 bb 80 31 46 00 60
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=3 -> 69 00 0a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 1a 2a
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- gain 0
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=1 <- 00
+IN  rt=c0 req=0 val=0034 idx=0600 len=4 -> 69 00 0a 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 10
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 07 60
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- gain mode auto
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 07 70
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0c 6b
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+--- close
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 18
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 06 b1
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 05 a0
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 07 3a
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 08 40
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 09 c0
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0a 36
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 0c 35
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 11 03
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 17 f4
+OUT rt=40 req=0 val=0034 idx=0610 len=2 <- 19 0c
+OUT rt=40 req=0 val=0120 idx=0011 len=1 <- 10
+IN  rt=c0 req=0 val=0120 idx=000a len=1 -> 00
+OUT rt=40 req=0 val=3000 idx=0210 len=1 <- 20
