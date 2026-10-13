@@ -12,24 +12,34 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.webkit.WebView
+import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.formiguer.rtlsdr.adsb.AdsbReceiver
 import com.formiguer.rtlsdr.adsb.AircraftTracker
+import com.formiguer.rtlsdr.adsb.Mode
+import com.formiguer.rtlsdr.adsb.RadioReceiver
 
 class MainActivity : Activity() {
 
     private lateinit var usbManager: UsbManager
     private lateinit var status: TextView
     private lateinit var map: WebView
+    private lateinit var adsbView: LinearLayout
+    private lateinit var air: AirbandPanel
+    private lateinit var tabAdsb: Button
+    private lateinit var tabAir: Button
 
     private val tracker = AircraftTracker()
-    private var adsb: AdsbReceiver? = null
+    private val audioOut = AudioOut()
+    private lateinit var radio: RadioReceiver
+    private var tab = TAB_ADSB
 
-    @Volatile private var linkStatus = AdsbReceiver.Status.CONNECTING
+    @Volatile private var linkStatus = RadioReceiver.Status.CONNECTING
     @Volatile private var linkMessage: String? = null
 
     private val handler = Handler(Looper.getMainLooper())
@@ -48,6 +58,15 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
 
+        radio = RadioReceiver(
+            tracker,
+            audio = audioOut,
+            onAirband = { info -> runOnUiThread { air.update(info) } },
+        ) { st, msg ->
+            linkStatus = st
+            linkMessage = msg
+        }
+
         status = TextView(this).apply {
             textSize = 15f
             gravity = Gravity.CENTER_VERTICAL
@@ -58,11 +77,30 @@ class MainActivity : Activity() {
             settings.domStorageEnabled = true
             loadUrl("file:///android_asset/map.html")
         }
-        setContentView(LinearLayout(this).apply {
+        adsbView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(status, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(map, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        }
+        air = AirbandPanel(this, radio, audioOut, getPreferences(Context.MODE_PRIVATE))
+
+        tabAdsb = Button(this).apply { text = "ADS-B (aviones)"; setOnClickListener { selectTab(TAB_ADSB) } }
+        tabAir = Button(this).apply { text = "Banda aérea (audio)"; setOnClickListener { selectTab(TAB_AIR) } }
+        val tabBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(tabAdsb, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            addView(tabAir, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        }
+        val content = FrameLayout(this).apply {
+            addView(adsbView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addView(air, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        }
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(tabBar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            addView(content, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         })
+        selectTab(TAB_ADSB)
 
         val filter = IntentFilter().apply {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
@@ -75,20 +113,30 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun selectTab(t: Int) {
+        tab = t
+        adsbView.visibility = if (t == TAB_ADSB) View.VISIBLE else View.GONE
+        air.visibility = if (t == TAB_AIR) View.VISIBLE else View.GONE
+        tabAdsb.isEnabled = t != TAB_ADSB
+        tabAir.isEnabled = t != TAB_AIR
+        // Un solo dongle: cada pestaña re-sintoniza la radio (1090 MHz o banda aérea)
+        radio.mode = if (t == TAB_ADSB) Mode.ADSB else Mode.AIRBAND
+        if (t == TAB_AIR) audioOut.start() else audioOut.stop()
+        refresh()
+    }
+
     // Se conecta al driver rtl_tcp solo mientras la app está en primer plano.
     override fun onResume() {
         super.onResume()
-        adsb = AdsbReceiver(tracker) { st, msg ->
-            linkStatus = st
-            linkMessage = msg
-        }.also { it.start() }
+        radio.start()
+        if (tab == TAB_AIR) audioOut.start()
         handler.post(ticker)
     }
 
     override fun onPause() {
         handler.removeCallbacks(ticker)
-        adsb?.stop()
-        adsb = null
+        radio.stop()
+        audioOut.stop()
         super.onPause()
     }
 
@@ -103,27 +151,35 @@ class MainActivity : Activity() {
         val dongle = RtlSdrDevice.find(usbManager)
             ?.let { "RTL-SDR ${RtlSdrDevice.describe(it)} conectado por USB" }
             ?: "RTL-SDR no visto por USB"
-        val streaming = linkStatus == AdsbReceiver.Status.STREAMING
+        val streaming = linkStatus == RadioReceiver.Status.STREAMING
         val link = when (linkStatus) {
-            AdsbReceiver.Status.CONNECTING -> "Conectando con el driver rtl_tcp…"
-            AdsbReceiver.Status.WAITING ->
+            RadioReceiver.Status.CONNECTING -> "Conectando con el driver rtl_tcp…"
+            RadioReceiver.Status.WAITING ->
                 "Sin driver rtl_tcp (${linkMessage ?: "sin respuesta"}). " +
                     "Abre la app del driver RTL-SDR, pulsa Start y vuelve aquí."
-            AdsbReceiver.Status.STREAMING -> {
-                val aircraft = tracker.snapshot(now)
-                val kb = (adsb?.bytesReceived?.get() ?: 0L) / 1024
-                "Recibiendo: $kb kB · mensajes ADS-B: ${tracker.totalMessages} · " +
-                    "aviones: ${aircraft.size} (${aircraft.count { it.lat != null }} en el mapa)"
-            }
+            RadioReceiver.Status.STREAMING -> "Driver rtl_tcp conectado"
         }
-        setStatus("$dongle\n$link", error = !streaming)
+        if (tab == TAB_AIR) {
+            air.setLink("$dongle · $link", error = !streaming)
+            return
+        }
+        val text = if (streaming) {
+            val aircraft = tracker.snapshot(now)
+            val kb = radio.bytesReceived.get() / 1024
+            "$dongle\nRecibiendo: $kb kB · mensajes ADS-B: ${tracker.totalMessages} · " +
+                "aviones: ${aircraft.size} (${aircraft.count { it.lat != null }} en el mapa)"
+        } else {
+            "$dongle\n$link"
+        }
+        status.text = text
+        status.setTextColor(if (streaming) Color.rgb(27, 94, 32) else Color.rgb(176, 0, 32))
         map.evaluateJavascript(
             "if (typeof updateAircraft === 'function') updateAircraft(${tracker.toJson(now)});", null
         )
     }
 
-    private fun setStatus(text: String, error: Boolean) {
-        status.text = text
-        status.setTextColor(if (error) Color.rgb(176, 0, 32) else Color.rgb(27, 94, 32))
+    private companion object {
+        const val TAB_ADSB = 0
+        const val TAB_AIR = 1
     }
 }

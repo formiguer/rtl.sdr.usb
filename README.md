@@ -3,7 +3,7 @@
 App Android para recibir ADS-B (aviones) con un dongle **RTL-SDR** por USB OTG y verlos en un mapa.
 
 - Objetivo: tablet con Android 7.1.1 (API 25).
-- Estado: **fase 2** — decodificador ADS-B y aviones en el mapa.
+- Estado: **fase 3** — ADS-B con mapa centrado en Palma + pestaña de banda aérea (audio AM 118–137 MHz).
 
 ## Cómo funciona
 ```
@@ -21,11 +21,20 @@ Esta app solo se conecta a `127.0.0.1:1234`, configura 1090 MHz / 2 Msps / ganan
 
 Necesitas antena para 1090 MHz y, para ver aviones, vista despejada (ventana/exterior).
 
+## Pestaña "Banda aérea"
+Receptor AM de toda la banda aeronáutica (118.000–136.990 MHz, canales de 25 y 8,33 kHz):
+- Sintonía manual (teclear frecuencia, pasos de 25 kHz u 8,33 kHz, ±1 MHz), memorias, volumen, squelch y ganancia.
+- **Escáner**: recorre la banda completa (22 ventanas de 1,2 MHz con FFT), se para en la frecuencia con portadora,
+  la escucha mientras dure y sigue. "Excluir" bloquea una frecuencia (interferencias fijas) y "Actividad" lista lo detectado.
+- Con un solo dongle, ADS-B y banda aérea **se turnan**: al cambiar de pestaña se re-sintoniza.
+- Necesita una antena de VHF; la de 1090 MHz casi no recibe esta banda.
+
 ## Módulos
-- `adsb/` — decodificador en Kotlin puro con tests (CRC24, demodulador 2 Msps, CPR, identificación, velocidad, cliente rtl_tcp).
+- `adsb/` — procesado de señal en Kotlin puro con tests: ADS-B (CRC24, demodulador 2 Msps, CPR, velocidad), receptor AM, escáner de banda y cliente rtl_tcp.
 - `app/` — interfaz Android (estado + mapa Leaflet/OpenStreetMap).
 
 ## Hoja de ruta
 1. Detección USB + mapa. ✅
 2. Decodificador ADS-B + aviones en el mapa. ✅ (pendiente de probar con antena real)
-3. Driver USB propio (sin app externa), historial de rutas y extras.
+3. Banda aérea: sintonía, escáner y audio. ✅ (pendiente de probar con antena VHF real)
+4. Driver USB propio (sin app externa), historial de rutas y extras.
