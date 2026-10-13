@@ -132,4 +132,17 @@ class DecoderTest {
         d.process(iq, iq.size)
         assertEquals(4, got.size)
     }
+
+    @Test
+    fun tracksSecondsSinceLastMessage() {
+        val t = AircraftTracker()
+        assertEquals(null, t.secondsSinceLastMessage(5000))
+        t.onMessage(ident, 1000)
+        assertEquals(4L, t.secondsSinceLastMessage(5000))
+        t.onMessage(hex("8D4840D6202CC371C32CE0576099"), 9000) // CRC inválido: no cuenta como dato
+        assertEquals(4L, t.secondsSinceLastMessage(5000))
+        t.onMessage(even, 8000)
+        assertEquals(2L, t.secondsSinceLastMessage(10000))
+        assertEquals(0L, t.secondsSinceLastMessage(7000)) // nunca negativo
+    }
 }

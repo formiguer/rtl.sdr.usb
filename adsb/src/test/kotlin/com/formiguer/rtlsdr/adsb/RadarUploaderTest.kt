@@ -82,6 +82,7 @@ class RadarUploaderTest {
             assertEquals("swap-turnos", req.xrw)
             assertTrue(req.path.contains("r=radar/subir"), req.path)
             assertTrue(req.body.contains("\"nombre\":\"PMI\"") && req.body.contains("40621D"), req.body)
+            assertTrue(Regex("\"ultimo_s\":\\d+").containsMatchIn(req.body), "lleva los segundos desde el último dato: ${req.body.take(120)}")
             assertEquals(RadarUploader.sign(key, "${req.ts}.${req.body}"), req.sig)
         } finally { srv.stop() }
     }
@@ -154,5 +155,22 @@ class RadarUploaderTest {
             up.start(); Thread.sleep(600); up.stop()
             assertEquals(0, srv.requests.size)
         } finally { srv.stop() }
+    }
+
+    @Test
+    fun parsesConnectionCode() {
+        val key = "0123456789abcdef0123456789abcdef"
+        val c = RadarUploader.parseCode("http://blas.byethost7.com/swap_repo_v1|$key")
+        assertEquals(RadarUploader.Config("http://blas.byethost7.com/swap_repo_v1", key), c)
+        assertEquals(c, RadarUploader.parseCode("  http://blas.byethost7.com/swap_repo_v1/ | ${key.uppercase()} \n"))
+        assertEquals("http://blas.byethost7.com/swap_repo_v1|$key", c!!.toCode())
+        assertEquals(c, RadarUploader.parseCode(c.toCode()))
+        assertEquals(null, RadarUploader.parseCode(""))
+        assertEquals(null, RadarUploader.parseCode(key))                              // falta la dirección
+        assertEquals(null, RadarUploader.parseCode("http://servidor"))                 // falta la clave
+        assertEquals(null, RadarUploader.parseCode("servidor.com|$key"))               // sin http(s)
+        assertEquals(null, RadarUploader.parseCode("http://servidor|corta"))            // clave inválida
+        assertEquals(null, RadarUploader.parseCode("http://servidor|${key}zz"))         // no es hexadecimal
+        assertEquals("http://127.0.0.1:8081", RadarUploader.parseCode("http://127.0.0.1:8081|$key")!!.baseUrl)
     }
 }

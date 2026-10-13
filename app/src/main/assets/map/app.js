@@ -1,7 +1,7 @@
 /* Radar ADS-B: mapa sin conexión, lista por cercanía, estelas, filtros y ajustes.
  * Lo usan la app Android (WebView) y el visor web de swap-turnos.
  * El anfitrión llama a  RadarMap.update(lista, meta)  /  updateAircraft(lista)  con los aviones:
- *   [{hex, flight, lat, lon, alt, speed, track, vr, gnd, age, msgs}]   (alt en ft, speed en kt, vr en ft/min, age en s)
+ *   [{hex, flight, reg, lat, lon, alt, speed, track, vr, gnd, age, msgs}]   (alt en ft, speed en kt, vr en ft/min, age en s)
  * Opcional (Android): window.AndroidBridge con loadSettings(), saveSettings(json), setFullscreen(bool). */
 (function () {
   'use strict';
@@ -15,7 +15,8 @@
     ground: 'all',            // all | air | gnd
     maxAge: 60,               // s sin mensajes para ocultar un avión
     listNoPos: true,
-    labels: { mode: 'always', fields: { flight: true, hex: false, alt: true, speed: false, track: false, vr: false, dist: false } },
+    listReg: true,            // matrícula junto al indicativo en la lista
+    labels: { mode: 'always', fields: { flight: true, reg: false, hex: false, alt: true, speed: false, track: false, vr: false, dist: false, age: false } },
     base: 'offline',          // offline | osm
     showAirports: true,
     showBorders: true,
@@ -181,19 +182,48 @@
   var acs = {};          // hex -> { marker, poly, trail: [[t, lat, lon]], html, sel }
   var current = [];      // aviones procesados del último envío
   var lastList = [], lastMeta = {}, lastAt = 0;
+  var dataAge = null, dataAgeAt = 0;   // segundos desde el último dato recibido de cualquier avión (aviso general de la barra de estado)
+  var ages = {};                       // hex -> { age, at }: segundos desde el último mensaje de ESE avión, medidos en el instante «at"
   var selected = null;
   var trailGroup = L.layerGroup().addTo(map);
   var planeGroup = L.layerGroup().addTo(map);
 
   function prepare(a, extra) {
     var o = {
-      hex: a.hex, flight: a.flight || null, lat: a.lat, lon: a.lon, alt: a.alt, speed: a.speed, track: a.track,
+      hex: a.hex, flight: a.flight || null, reg: a.reg || null, lat: a.lat, lon: a.lon, alt: a.alt, speed: a.speed, track: a.track,
       vr: a.vr, gnd: a.gnd, age: (a.age || 0) + extra, msgs: a.msgs
     };
     o.hasPos = typeof o.lat === 'number' && typeof o.lon === 'number';
     o.dist = o.hasPos ? distM(o.lat, o.lon) : null;
     o.id = o.flight || o.hex;
+    // ping: ¿ha llegado un mensaje nuevo de este avión desde la última actualización? (su contador baja)
+    var now = Date.now(), prev = ages[o.hex];
+    o.fresh = !!prev && o.age < prev.age + (now - prev.at) / 1000 - 0.5;
+    ages[o.hex] = { age: o.age, at: now };
     return o;
+  }
+  /* Segundos desde el último mensaje de un avión, ahora mismo (sube solo entre actualizaciones) */
+  function ageNow(hex) {
+    var r = ages[hex];
+    return r ? r.age + (Date.now() - r.at) / 1000 : null;
+  }
+  function pingClass(age) { return age < 5 ? 'ok' : age < 15 ? 'warn' : 'bad'; }
+  function fmtPing(age) { return age < 3600 ? Math.floor(age) + ' s' : '> 1 h'; }
+  /* Punto que late + segundos; independiente de la distancia y del orden de la lista */
+  function pingHtml(a, fresh) {
+    var age = ageNow(a.hex);
+    if (age == null) return '';
+    return '<span class="pg ' + pingClass(age) + '" data-ping="' + esc(a.hex) + '" title="Segundos desde el último mensaje de este avión">' +
+      '<i class="dot' + (fresh ? ' pulse' : '') + '"></i><b>' + fmtPing(age) + '</b></span>';
+  }
+  function tickPings() {
+    var els = document.querySelectorAll('[data-ping]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], age = ageNow(el.getAttribute('data-ping'));
+      if (age == null) continue;
+      el.className = 'pg ' + pingClass(age);
+      el.querySelector('b').textContent = fmtPing(age);
+    }
   }
   function passes(a) {
     if (a.age > S.maxAge) return false;
@@ -233,12 +263,14 @@
     if (S.labels.mode === 'selected' && !sel) return '';
     var f = S.labels.fields, ids = [], rest = [];
     if (f.flight) ids.push(a.flight || a.hex);
+    if (f.reg && a.reg) ids.push(a.reg);
     if (f.hex && (!f.flight || a.flight)) ids.push(a.hex);
     if (f.alt && a.gnd !== true && fmtAlt(a.alt)) rest.push(fmtAlt(a.alt));
     if (f.speed && fmtSpeed(a.speed)) rest.push(fmtSpeed(a.speed));
     if (f.track && fmtTrack(a.track)) rest.push(fmtTrack(a.track));
     if (f.vr && fmtVr(a.vr)) rest.push(fmtVr(a.vr));
     if (f.dist && a.dist != null) rest.push(fmtDist(a.dist));
+    if (f.age) rest.push('⟲ ' + fmtPing(a.age));
     if (a.gnd === true && (ids.length || rest.length)) rest.unshift('tierra');
     if (!ids.length && !rest.length) return '';
     return (ids.length ? '<b>' + esc(ids.join(' · ')) + '</b>' : '') + (ids.length && rest.length ? '<br>' : '') + esc(rest.join(' · '));
@@ -294,7 +326,8 @@
   var sideEl, listEl, detailEl, headEl;
   function buildSide() {
     sideEl = document.createElement('div'); sideEl.id = 'side';
-    sideEl.innerHTML = '<div class="hd"><b id="sidehd"></b><button id="sidex" aria-label="Cerrar">✕</button></div><div id="detail"></div><div id="list"></div>';
+    sideEl.innerHTML = '<div class="hd"><b id="sidehd"></b><button id="sidex" aria-label="Cerrar">✕</button></div>' +
+      '<div id="detail"></div><div id="list"></div>';
     document.body.appendChild(sideEl);
     listEl = sideEl.querySelector('#list'); detailEl = sideEl.querySelector('#detail'); headEl = sideEl.querySelector('#sidehd');
     sideEl.querySelector('#sidex').onclick = function () { setPanel(false); };
@@ -308,6 +341,7 @@
   function setPanel(on) {
     S.panel = !!on; saveSettings();
     sideEl.classList.toggle('open', S.panel);
+    document.body.classList.toggle('panel-open', S.panel);
     var b = document.getElementById('btn-list'); if (b) b.classList.toggle('on', S.panel);
     if (S.panel) drawList();
   }
@@ -315,6 +349,7 @@
   function fieldRows(a) {
     var rows = [];
     function add(k, v) { if (v != null && v !== '') rows.push([k, v]); }
+    add('Matrícula', a.reg);
     add('ICAO', a.hex);
     add('Estado', a.gnd === true ? 'En tierra' : (a.gnd === false ? 'En el aire' : 'Desconocido'));
     if (a.gnd !== true) add('Altitud', fmtAlt(a.alt));
@@ -323,7 +358,6 @@
     if (a.gnd !== true) add('Vel. vertical', fmtVr(a.vr));
     add('Distancia a ' + refName(), a.dist != null ? fmtDist(a.dist) : null);
     add('Posición', a.hasPos ? a.lat.toFixed(4) + ', ' + a.lon.toFixed(4) : 'sin posición todavía');
-    add('Último mensaje', 'hace ' + Math.round(a.age) + ' s');
     add('Mensajes', a.msgs);
     return rows;
   }
@@ -349,8 +383,8 @@
       var tag = a.gnd === true ? '<span class="tag">tierra</span>' : '';
       if (!a.hasPos) tag += '<span class="tag nopos">sin posición</span>';
       html += '<div class="row' + (selected === a.hex ? ' sel' : '') + '" data-hex="' + esc(a.hex) + '">' +
-        '<div class="l1"><span>' + esc(a.id) + tag + '</span><span>' + (a.dist != null ? esc(fmtDist(a.dist)) : '—') + '</span></div>' +
-        '<div class="l2">' + (rest.length ? esc(rest.join(' · ')) : '&nbsp;') + '</div></div>';
+        '<div class="l1"><span>' + esc(a.id) + (S.listReg && a.reg ? '<span class="reg">' + esc(a.reg) + '</span>' : '') + tag + '</span><span>' + (a.dist != null ? esc(fmtDist(a.dist)) : '—') + '</span></div>' +
+        '<div class="l2"><span>' + (rest.length ? esc(rest.join(' · ')) : '&nbsp;') + '</span>' + pingHtml(a, a.fresh) + '</div></div>';
     });
     listEl.innerHTML = html || '<div class="empty">Sin aviones con estos filtros.</div>';
     listEl.scrollTop = top;
@@ -362,6 +396,7 @@
     if (!a) { detailEl.style.display = 'none'; return; }
     var t = '<div class="t"><span>' + esc(a.id) + '</span><button class="xbtn" id="deselect" aria-label="Quitar selección">✕</button></div><table>';
     fieldRows(a).forEach(function (r) { t += '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; });
+    t += '<tr><td>Último mensaje</td><td>' + pingHtml(a, a.fresh) + '</td></tr>';
     detailEl.innerHTML = t + '</table>';
     detailEl.style.display = 'block';
     detailEl.querySelector('#deselect').onclick = function () { select(null); };
@@ -383,11 +418,18 @@
     var txt = vis.length + ' aviones · ' + onMap + ' en el mapa';
     var age = lastAt ? Math.round((Date.now() - lastAt) / 1000) : null;
     var snap = lastMeta && lastMeta.extraAge ? lastMeta.extraAge : 0;
+    var da = currentDataAge();
     chip.classList.remove('warn');
     if (lastMeta && lastMeta.message) { txt = lastMeta.message; chip.classList.add('warn'); }
     else if (age == null) { txt = 'Esperando datos…'; chip.classList.add('warn'); }
-    else if (age + snap > 10) { txt += ' · sin datos hace ' + (age + snap) + ' s'; chip.classList.add('warn'); }
+    else if (da != null && da > 10) { txt += ' · sin datos hace ' + Math.floor(da) + ' s'; chip.classList.add('warn'); }
+    else if (da == null && age + snap > 10) { txt += ' · sin datos hace ' + (age + snap) + ' s'; chip.classList.add('warn'); }
     chip.textContent = txt;
+  }
+
+  /* Segundos desde el último mensaje de cualquier avión (solo para el aviso general de la barra de estado) */
+  function currentDataAge() {
+    return dataAge == null ? null : dataAge + (Date.now() - dataAgeAt) / 1000;
   }
 
   function redraw() {
@@ -399,7 +441,15 @@
     lastList = Array.isArray(list) ? list : [];
     lastMeta = meta || {};
     lastAt = Date.now();
-    ingest(lastList, lastMeta.extraAge || 0);
+    var extra = lastMeta.extraAge || 0;
+    ingest(lastList, extra);
+    if (typeof lastMeta.lastDataAge === 'number') dataAge = lastMeta.lastDataAge + extra;
+    else {
+      var min = null;
+      current.forEach(function (a) { if (min == null || a.age < min) min = a.age; });   // la edad ya incluye extraAge
+      dataAge = min;
+    }
+    dataAgeAt = Date.now();
     redraw();
   }
   window.updateAircraft = function (list) { update(list, {}); };
@@ -527,13 +577,14 @@
     h('Aviones');
     sel('Mostrar', function () { return S.ground; }, [['all', 'Todos'], ['air', 'Solo en el aire'], ['gnd', 'Solo en tierra']], function (v) { S.ground = v; applyAll(); });
     sel('Ocultar si no hay datos desde hace', function () { return S.maxAge; }, [[15, '15 s'], [30, '30 s'], [60, '60 s'], [120, '2 min']], function (v) { S.maxAge = +v; applyAll(); });
+    chkRow('Matrícula junto al indicativo en la lista', function () { return S.listReg; }, function (v) { S.listReg = v; applyAll(); });
     chkRow('Listar también los aviones sin posición', function () { return S.listNoPos; }, function (v) { S.listNoPos = v; applyAll(); });
     note('En el mapa el color indica la altitud: naranja <10 000 ft, amarillo <20 000, verde <30 000, azul <40 000, morado ≥40 000; gris = en tierra.');
 
     h('Datos junto a cada avión');
     sel('Mostrarlos', function () { return S.labels.mode; }, [['always', 'Siempre'], ['selected', 'Solo en el avión seleccionado'], ['never', 'Nunca']], function (v) { S.labels.mode = v; applyAll(); });
     var cw = document.createElement('div'); cw.className = 'chk'; body.appendChild(cw);
-    [['flight', 'Indicativo'], ['hex', 'ICAO'], ['alt', 'Altitud'], ['speed', 'Velocidad'], ['track', 'Rumbo'], ['vr', 'Vel. vertical'], ['dist', 'Distancia']].forEach(function (f) {
+    [['flight', 'Indicativo'], ['reg', 'Matrícula'], ['hex', 'ICAO'], ['alt', 'Altitud'], ['speed', 'Velocidad'], ['track', 'Rumbo'], ['vr', 'Vel. vertical'], ['dist', 'Distancia'], ['age', 'Último dato (s)']].forEach(function (f) {
       chk(cw, f[1], function () { return S.labels.fields[f[0]]; }, function (v) { S.labels.fields[f[0]] = v; applyAll(); });
     });
     note('El avión seleccionado muestra siempre todos sus datos en el panel lateral.');
@@ -560,4 +611,5 @@
   refreshButtons();
   drawChip();
   setInterval(drawChip, 1000);
+  setInterval(tickPings, 250);   // el contador de cada avión cambia justo al cumplirse el segundo
 })();

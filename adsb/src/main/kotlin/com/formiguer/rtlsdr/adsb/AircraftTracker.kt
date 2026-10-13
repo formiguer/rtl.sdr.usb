@@ -16,6 +16,10 @@ class Aircraft(val icao: Int) {
     var messages = 0
     var lastSeenMs = 0L
 
+    /** Matrícula (de la base de matrículas por código ICAO), o null si no se conoce. */
+    var registration: String? = null
+    internal var registrationLooked = false
+
     /** true = en tierra (mensajes de superficie), false = en el aire, null = desconocido. */
     var onGround: Boolean? = null
 
@@ -38,11 +42,23 @@ class AircraftTracker(
     @Volatile var referenceLat = 39.5517
     @Volatile var referenceLon = 2.7388
 
+    /** Base de matrículas (opcional): con ella cada avión lleva su matrícula en [toJson]. */
+    @Volatile var registrations: RegistrationDb? = null
+
     private val aircraft = HashMap<Int, Aircraft>()
 
     @get:Synchronized
     var totalMessages = 0L
         private set
+
+    /** Hora (ms) del último mensaje ADS-B válido recibido de cualquier avión; 0 si todavía no ha llegado ninguno. */
+    @Volatile
+    var lastMessageMs = 0L
+        private set
+
+    /** Segundos desde el último mensaje recibido (de cualquier avión), o null si todavía no ha llegado ninguno. */
+    fun secondsSinceLastMessage(nowMs: Long): Long? =
+        if (lastMessageMs == 0L) null else maxOf(0L, (nowMs - lastMessageMs) / 1000)
 
     /** @return true si el mensaje era un DF17 válido (CRC correcto). */
     @Synchronized
@@ -52,9 +68,11 @@ class AircraftTracker(
         if (Crc24.remainder(msg, 14) != 0) return false
 
         totalMessages++
+        lastMessageMs = nowMs
         val icao = ((msg[1].toInt() and 0xFF) shl 16) or
             ((msg[2].toInt() and 0xFF) shl 8) or (msg[3].toInt() and 0xFF)
         val ac = aircraft.getOrPut(icao) { Aircraft(icao) }
+        resolveRegistration(ac)
         ac.lastSeenMs = nowMs
         ac.messages++
 
@@ -67,6 +85,16 @@ class AircraftTracker(
             19 -> decodeVelocity(ac, me)
         }
         return true
+    }
+
+    /** La matrícula solo se busca una vez por avión (y de nuevo si la base se carga después de verlo). */
+    private fun resolveRegistration(ac: Aircraft) {
+        if (ac.registration != null) return
+        val db = registrations ?: return
+        if (!ac.registrationLooked) {
+            ac.registration = db.lookup(ac.icao)
+            ac.registrationLooked = true
+        }
     }
 
     private fun decodeIdentification(ac: Aircraft, me: Long) {
@@ -185,7 +213,9 @@ class AircraftTracker(
             if (!first) sb.append(',')
             first = false
             sb.append("{\"hex\":\"").append(a.hex).append('"')
+            resolveRegistration(a)
             sb.append(",\"flight\":").append(a.callsign?.let { "\"$it\"" } ?: "null")
+            sb.append(",\"reg\":").append(a.registration?.let { "\"$it\"" } ?: "null")
             sb.append(",\"lat\":").append(a.lat ?: "null")
             sb.append(",\"lon\":").append(a.lon ?: "null")
             sb.append(",\"alt\":").append(a.altitudeFt ?: "null")

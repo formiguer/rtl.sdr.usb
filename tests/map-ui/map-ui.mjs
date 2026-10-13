@@ -32,7 +32,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto(page_url);
 await page.waitForFunction(() => window.RadarMap);
 
-const AIR = { hex: 'A1B2C3', flight: 'KLM1023', lat: 39.9, lon: 3.1, alt: 35000, speed: 450, track: 90, vr: -64, gnd: false, age: 1, msgs: 40 };
+const AIR = { hex: 'A1B2C3', flight: 'KLM1023', reg: 'PH-BXA', lat: 39.9, lon: 3.1, alt: 35000, speed: 450, track: 90, vr: -64, gnd: false, age: 1, msgs: 40 };
 const GND = { hex: '34AABB', flight: 'VLG8841', lat: 39.5600, lon: 2.7300, alt: null, speed: 12, track: 200, vr: null, gnd: true, age: 0, msgs: 90 };
 const FAR = { hex: '4840D6', flight: 'RYR22', lat: 41.3, lon: 2.08, alt: 12000, speed: 300, track: 10, vr: 1500, gnd: false, age: 3, msgs: 12 };
 const NOPOS = { hex: 'ABC123', flight: null, lat: null, lon: null, alt: null, speed: null, track: null, vr: null, gnd: null, age: 5, msgs: 3 };
@@ -58,6 +58,11 @@ let ids = await rowIds();
 check('lista ordenada por cercanía a PMI (tierra, aire, lejano, sin posición)', JSON.stringify(ids) === JSON.stringify(['34AABB', 'A1B2C3', '4840D6', 'ABC123']), ids.join(','));
 const firstRow = await page.textContent('#list .row');
 check('la fila muestra distancia en km', /km/.test(firstRow), firstRow);
+
+// 2b) matrícula junto al indicativo
+const regTxt = await page.textContent('#list .row[data-hex="A1B2C3"] .l1 .reg').catch(() => null);
+check('la lista muestra la matrícula junto al indicativo', regTxt === 'PH-BXA', String(regTxt));
+check('sin matrícula no hay etiqueta vacía', (await page.$$('#list .row[data-hex="34AABB"] .reg')).length === 0);
 
 // 3) filtro tierra / aire
 await page.click('#btn-set');
@@ -146,6 +151,43 @@ check('los ajustes se restauran al reabrir', s2.rings.count === 4 && s2.rings.st
 await page2.evaluate((l) => RadarMap.update(l, {}), [AIR, GND, FAR]);
 await page2.screenshot({ path: path.join(outDir, '3-reabierto.png') });
 
+// 10b) ping de actividad POR AVIÓN: segundos desde el último mensaje de cada uno, sin depender de la proximidad
+await page.click('#settings .xbtn').catch(() => {});
+await page.evaluate(() => { if (!RadarMap.getSettings().panel) document.getElementById('btn-list').click(); });
+const pings = () => page.$$eval('#list .row', (rs) => Object.fromEntries(rs.map((r) => [r.getAttribute('data-hex'), r.querySelector('.pg') ? { n: r.querySelector('.pg b').textContent, cls: r.querySelector('.pg').className.replace('pg ', ''), pulse: r.querySelector('.pg .dot').classList.contains('pulse') } : null])));
+await feed([{ ...AIR, age: 1 }, { ...GND, age: 0 }, { ...FAR, age: 20 }, { ...NOPOS, age: 7 }]);
+let pg = await pings();
+check('ping: cada fila tiene su contador', Object.values(pg).every((x) => x && /^\d+ s$/.test(x.n)), JSON.stringify(pg));
+check('ping: cada avión con SU tiempo (independiente del orden por cercanía)', pg['34AABB'].n === '0 s' && pg.A1B2C3.n === '1 s' && pg['4840D6'].n === '20 s' && pg.ABC123.n === '7 s', JSON.stringify(Object.entries(pg).map(([k, v]) => k + ':' + v.n)));
+check('ping: colores por antigüedad (verde <5 s, ámbar <15 s, rojo)', pg['34AABB'].cls === 'ok' && pg.ABC123.cls === 'warn' && pg['4840D6'].cls === 'bad', JSON.stringify(Object.entries(pg).map(([k, v]) => k + ':' + v.cls)));
+check('ping: también los aviones sin posición lo llevan', pg.ABC123 !== null);
+await page.waitForTimeout(2300);
+pg = await pings();
+check('ping: los contadores suben solos cada segundo', pg['34AABB'].n === '2 s' && pg['4840D6'].n === '22 s' && pg.ABC123.n === '9 s', JSON.stringify(Object.entries(pg).map(([k, v]) => k + ':' + v.n)));
+// llega un mensaje nuevo SOLO del avión de en medio (su contador baja); los demás siguen subiendo
+await feed([{ ...AIR, age: 0 }, { ...GND, age: 2 }, { ...FAR, age: 22 }, { ...NOPOS, age: 9 }]);
+pg = await pings();
+check('ping: late solo el avión que ha recibido un mensaje', pg.A1B2C3.pulse === true && !pg['34AABB'].pulse && !pg['4840D6'].pulse && !pg.ABC123.pulse, JSON.stringify(Object.entries(pg).map(([k, v]) => k + ':' + v.pulse)));
+check('ping: y su contador vuelve a 0', pg.A1B2C3.n === '0 s', pg.A1B2C3.n);
+// en la ficha del avión seleccionado
+await page.click('#list .row[data-hex="4840D6"]');
+const ficha = await page.$eval('#detail', (d) => ({ txt: d.textContent, ping: !!d.querySelector('[data-ping]') }));
+check('ping: la ficha del avión seleccionado también lo muestra', ficha.ping && /Último mensaje/.test(ficha.txt));
+// como dato junto al avión en el mapa
+await page.click('#btn-set');
+await page.locator('#settings .chk label', { hasText: 'Último dato' }).locator('input').check();
+const lbl2 = await page.textContent('.plane:not(.gnd) .lbl >> nth=0');
+check('ping: opción «Último dato (s)» junto al avión en el mapa', /⟲ \d+ s/.test(lbl2), lbl2);
+await page.locator('#settings .chk label', { hasText: 'Último dato' }).locator('input').uncheck();
+await page.click('#settings .xbtn');
+// aviso general en la barra de estado cuando no llega ningún dato
+await feed([{ ...AIR, age: 30 }], { lastDataAge: 30 });
+const chipTxt = await chip();
+check('barra de estado: avisa de que no llega ningún dato', /sin datos hace 3\d s/.test(chipTxt), chipTxt);
+await feed([{ ...AIR, age: 1 }], { lastDataAge: 1 });
+check('barra de estado: sin aviso si hay datos recientes', !/sin datos/.test(await chip()), await chip());
+await page.screenshot({ path: path.join(outDir, '4-ping-por-avion.png') });
+
 // 11) otro aeropuerto de referencia
 await page.click('#settings .xbtn').catch(() => {});
 await page.click('#btn-set');
@@ -153,6 +195,40 @@ await page.fill('#apin', 'BCN');
 await page.click('text=Cambiar aeropuerto');
 const bcn = await page.$eval('.refap span', (e) => e.textContent);
 check('aeropuerto de referencia cambiado a BCN', bcn === 'BCN', bcn);
+
+// 12) responsive: móvil vertical y apaisado, tableta y escritorio
+const SIZES = [['movil-vertical', 360, 740, true], ['movil-pequeno', 320, 568, true], ['movil-apaisado', 740, 360, true], ['tableta-vertical', 800, 1280, true], ['escritorio', 1366, 768, false]];
+for (const [name, w, h, touch] of SIZES) {
+  const c = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch, deviceScaleFactor: 2 });
+  const p = await c.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(String(e)));
+  await p.goto(page_url); await p.waitForFunction(() => window.RadarMap);
+  await p.evaluate(([l]) => RadarMap.update(l, { lastDataAge: 2 }), [[AIR, GND, FAR, NOPOS]]);
+  const measure = () => p.evaluate(() => {
+    const r = (sel) => { const e = document.querySelector(sel); if (!e || !e.offsetParent && getComputedStyle(e).position !== 'fixed') return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom }; };
+    return { vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight, bar: r('.rb a'), chip: r('#chip'), side: r('#side.open'), box: r('#settings.open .box'), volver: null };
+  });
+  let m = await measure();
+  check(`${name} (${w}×${h}): sin desbordamiento horizontal ni vertical`, m.sw <= m.vw && m.sh <= m.vh, `${m.sw}x${m.sh} en ${m.vw}x${m.vh}`);
+  check(`${name}: botones ≥ ${touch ? 44 : 36} px`, m.bar.w >= (touch ? 43.5 : 35.5) && m.bar.h >= (touch ? 43.5 : 35.5), `${m.bar.w}x${m.bar.h}`);
+  await p.click('#btn-list'); await p.waitForSelector('#list .row'); m = await measure();
+  check(`${name}: lista dentro de la pantalla`, m.side && m.side.x >= -0.5 && m.side.r <= m.vw + 0.5 && m.side.b <= m.vh + 0.5 && m.side.y >= -0.5, JSON.stringify(m.side));
+  if (w <= 640 && h > w) check(`${name}: la lista es una hoja inferior (el mapa sigue visible)`, m.side.w >= m.vw - 1 && m.side.y > m.vh * 0.4 && m.side.h <= m.vh * 0.55, JSON.stringify(m.side));
+  check(`${name}: la barra de estado no queda tapada por la lista`, !m.chip || !m.side || m.chip.b <= m.side.y + 1 || m.chip.r <= m.side.x + 1, JSON.stringify({ chip: m.chip, side: m.side }));
+  const tiene = await p.$$eval('#list .row', (rs) => rs.every((r) => r.scrollWidth <= r.clientWidth + 1));
+  check(`${name}: las filas de la lista no desbordan`, tiene);
+  const ping = await p.$$eval('#list .row .pg', (e) => e.length);
+  check(`${name}: cada fila muestra su contador`, ping === 4, String(ping));
+  await p.screenshot({ path: path.join(outDir, `r-${name}-lista.png`) });
+  await p.click('#btn-set'); m = await measure();
+  check(`${name}: ajustes dentro de la pantalla`, m.box && m.box.x >= -0.5 && m.box.r <= m.vw + 0.5 && m.box.y >= -0.5 && m.box.b <= m.vh + 0.5, JSON.stringify(m.box));
+  const desb = await p.$$eval('#settings .body *', (els) => els.filter((e) => e.getBoundingClientRect().right > innerWidth + 1).length);
+  check(`${name}: ningún control de ajustes se sale por la derecha`, desb === 0, String(desb));
+  const fs = await p.$$eval('#settings select, #settings input[type=number], #settings input[type=text]', (els) => Math.min(...els.map((e) => parseFloat(getComputedStyle(e).fontSize))));
+  if (w <= 640) check(`${name}: campos con letra ≥ 16 px (sin zoom en iOS)`, fs >= 16, String(fs));
+  await p.screenshot({ path: path.join(outDir, `r-${name}-ajustes.png`) });
+  check(`${name}: sin errores de JavaScript`, errs.length === 0, errs.join('|'));
+  await c.close();
+}
 
 check('sin errores de JavaScript', errors.length === 0, errors.join(' | '));
 await browser.close();

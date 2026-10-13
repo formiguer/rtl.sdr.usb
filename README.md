@@ -61,3 +61,9 @@ Receptor AM de toda la banda aeronáutica (118.000–136.990 MHz, canales de 25 
 ## Licencia
 GPL-2.0-or-later (ver `LICENSE`): el driver USB es un port de librtlsdr / tuner_r82xx.c
 (© Steve Markgraf, Mauro Carvalho Chehab y colaboradores de osmocom/rtl-sdr).
+
+## Matrículas
+
+La app lleva incluida una base offline de matrículas por código ICAO (`app/src/main/assets/matriculas.bin`, ~570 000 aviones, datos de
+[tar1090-db](https://github.com/wiedehopf/tar1090-db)). Se muestra junto al indicativo en el panel lateral, en la ficha del avión y,
+opcionalmente, en la etiqueta del mapa. Se regenera con `python3 tools/matriculas/build.py`.

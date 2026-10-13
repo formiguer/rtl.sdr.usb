@@ -33,6 +33,7 @@ import com.formiguer.rtlsdr.adsb.IqSource
 import com.formiguer.rtlsdr.adsb.Mode
 import com.formiguer.rtlsdr.adsb.RadarUploader
 import com.formiguer.rtlsdr.adsb.RadioReceiver
+import com.formiguer.rtlsdr.adsb.RegistrationDb
 import com.formiguer.rtlsdr.adsb.RtlTcpClient
 import java.io.IOException
 
@@ -85,6 +86,14 @@ class MainActivity : Activity() {
         prefs = getPreferences(Context.MODE_PRIVATE)
         useExternal = prefs.getBoolean(KEY_EXTERNAL, false)
 
+        // Base de matrículas (assets/matriculas.bin): se carga aparte para no retrasar el arranque.
+        Thread {
+            try {
+                tracker.registrations = RegistrationDb(assets.open("matriculas.bin").use { it.readBytes() })
+            } catch (_: Exception) {
+            }
+        }.start()
+
         radio = RadioReceiver(
             tracker,
             audio = audioOut,
@@ -98,9 +107,7 @@ class MainActivity : Activity() {
         uploader = RadarUploader(
             tracker,
             config = {
-                val url = prefs.getString(KEY_RADAR_URL, "").orEmpty()
-                val key = prefs.getString(KEY_RADAR_KEY, "").orEmpty()
-                if (prefs.getBoolean(KEY_RADAR_ON, false) && url.isNotBlank() && key.isNotBlank()) RadarUploader.Config(url, key) else null
+                if (prefs.getBoolean(KEY_RADAR_ON, false)) RadarUploader.parseCode(prefs.getString(KEY_RADAR_CODE, "").orEmpty()) else null
             },
             isAdsbActive = { tab == TAB_ADSB && linkStatus == RadioReceiver.Status.STREAMING },
             stationName = { "Tablet" },
@@ -197,19 +204,14 @@ class MainActivity : Activity() {
         usbManager.requestPermission(device, pending)
     }
 
-    /** Ajustes del envío de aviones al servidor de swap-turnos (se ven en Administrador general → Mapa). */
+    /** Ajustes del envío de aviones al servidor de swap-turnos: un único «código de conexión» que se copia desde el radar. */
     private fun showRadarDialog() {
-        val url = EditText(this).apply {
-            hint = "Dirección del servidor"
+        val code = EditText(this).apply {
+            hint = "Código de conexión"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            setSingleLine()
-            setText(prefs.getString(KEY_RADAR_URL, ""))
-        }
-        val key = EditText(this).apply {
-            hint = "Clave"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-            setSingleLine()
-            setText(prefs.getString(KEY_RADAR_KEY, ""))
+            minLines = 2
+            maxLines = 4
+            setText(prefs.getString(KEY_RADAR_CODE, ""))
         }
         val on = CheckBox(this).apply {
             text = "Enviar los aviones al servidor"
@@ -217,32 +219,37 @@ class MainActivity : Activity() {
         }
         val result = TextView(this).apply { textSize = 13f; setPadding(0, 16, 0, 0) }
         val help = TextView(this).apply {
-            textSize = 12f
-            text = "Copia la dirección y la clave desde swap-turnos: Administrador general → Mapa. " +
-                "La clave no viaja por la red: cada envío va firmado. Se envía despacio si nadie mira el mapa."
+            textSize = 13f
+            text = "En swap-turnos abre Más secciones → RADAR → ☁ Tablet, copia el código de conexión y pégalo aquí. " +
+                "Sin ese código nadie puede enviar aviones a tu servidor."
         }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 20, 40, 0)
-            addView(help); addView(url); addView(key); addView(on); addView(result)
+            addView(help); addView(code); addView(on); addView(result)
         }
         val dialog = AlertDialog.Builder(this)
             .setTitle("Mapa en el servidor")
             .setView(box)
-            .setPositiveButton("Guardar") { _, _ ->
-                prefs.edit().putString(KEY_RADAR_URL, url.text.toString().trim())
-                    .putString(KEY_RADAR_KEY, key.text.toString().trim())
-                    .putBoolean(KEY_RADAR_ON, on.isChecked).apply()
-            }
+            .setPositiveButton("Guardar", null)
             .setNeutralButton("Probar", null)
             .setNegativeButton("Cancelar", null)
             .create()
         dialog.show()
-        // «Probar» no cierra la ventana: hace un envío de verdad y cuenta qué contesta el servidor
+        // «Guardar» y «Probar» comprueban el código antes de seguir (y «Probar» no cierra la ventana)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val text = code.text.toString().trim()
+            if (text.isNotEmpty() && RadarUploader.parseCode(text) == null) {
+                result.text = "✖ Ese código no es válido. Cópialo entero desde swap-turnos."
+                return@setOnClickListener
+            }
+            prefs.edit().putString(KEY_RADAR_CODE, text).putBoolean(KEY_RADAR_ON, on.isChecked && text.isNotEmpty()).apply()
+            dialog.dismiss()
+        }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-            val cfg = RadarUploader.Config(url.text.toString().trim(), key.text.toString().trim())
-            if (cfg.baseUrl.isBlank() || cfg.key.isBlank()) {
-                result.text = "Escribe la dirección y la clave."
+            val cfg = RadarUploader.parseCode(code.text.toString())
+            if (cfg == null) {
+                result.text = "✖ Pega primero el código de conexión (cópialo entero desde swap-turnos)."
                 return@setOnClickListener
             }
             result.text = "Probando…"
@@ -361,8 +368,9 @@ class MainActivity : Activity() {
         }
         status.text = text
         status.setTextColor(if (streaming) Color.rgb(27, 94, 32) else Color.rgb(176, 0, 32))
+        val lastAge = tracker.secondsSinceLastMessage(now)
         map.evaluateJavascript(
-            "if (typeof updateAircraft === 'function') updateAircraft(${tracker.toJson(now)});", null
+            "if (window.RadarMap) RadarMap.update(${tracker.toJson(now)}, {lastDataAge: ${lastAge ?: "null"}});", null
         )
     }
 
@@ -370,8 +378,7 @@ class MainActivity : Activity() {
         const val TAG = "RtlSdrDriver"
         const val KEY_EXTERNAL = "use_external_driver"
         const val KEY_MAP_SETTINGS = "map_settings"
-        const val KEY_RADAR_URL = "radar_url"
-        const val KEY_RADAR_KEY = "radar_key"
+        const val KEY_RADAR_CODE = "radar_code"
         const val KEY_RADAR_ON = "radar_on"
         const val ACTION_USB_PERMISSION = "com.formiguer.rtlsdr.USB_PERMISSION"
         const val TAB_ADSB = 0

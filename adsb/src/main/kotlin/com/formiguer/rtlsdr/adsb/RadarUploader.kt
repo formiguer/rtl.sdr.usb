@@ -24,8 +24,11 @@ class RadarUploader(
     private val clock: () -> Long = System::currentTimeMillis,
     private val onStatus: (String, Boolean) -> Unit = { _, _ -> },
 ) {
-    /** [baseUrl]: carpeta de la web (p. ej. http://servidor/swap_repo_v1); [key]: clave generada en el panel. */
-    data class Config(val baseUrl: String, val key: String)
+    /** [baseUrl]: carpeta de la web (p. ej. http://servidor/swap_repo_v1); [key]: clave generada en el servidor. */
+    data class Config(val baseUrl: String, val key: String) {
+        /** El «código de conexión» que se copia desde el servidor: dirección y clave en un solo texto. */
+        fun toCode(): String = baseUrl.trim().trimEnd('/') + "|" + key.trim()
+    }
 
     class Result(val ok: Boolean, val ver: Boolean, val message: String, val aircraft: Int = 0)
 
@@ -85,7 +88,7 @@ class RadarUploader(
     fun sendOnce(cfg: Config, adsb: Boolean = isAdsbActive()): Result {
         val now = clock()
         val body = if (adsb) {
-            "{\"estacion\":{\"nombre\":${jsonString(stationName())},\"mensajes\":${tracker.totalMessages}}," +
+            "{\"estacion\":{\"nombre\":${jsonString(stationName())},\"mensajes\":${tracker.totalMessages},\"ultimo_s\":${tracker.secondsSinceLastMessage(now) ?: "null"}}," +
                 "\"aviones\":${tracker.toJson(now)}}"
         } else {
             "{\"estado\":\"pausa\"}"
@@ -138,6 +141,18 @@ class RadarUploader(
     }
 
     companion object {
+        /** Interpreta un «código de conexión» (dirección|clave); null si no tiene ese formato. */
+        fun parseCode(code: String): Config? {
+            val text = code.trim().replace("\\s".toRegex(), "")
+            val cut = text.lastIndexOf('|')
+            if (cut <= 0) return null
+            val url = text.substring(0, cut).trimEnd('/')
+            val key = text.substring(cut + 1)
+            val okUrl = Regex("^https?://[^/\\s|]+(/[^\\s|]*)?$").matches(url)
+            val okKey = Regex("^[0-9a-fA-F]{16,64}$").matches(key)
+            return if (okUrl && okKey) Config(url, key.lowercase()) else null
+        }
+
         fun sign(key: String, data: String): String {
             val mac = Mac.getInstance("HmacSHA256")
             mac.init(SecretKeySpec(key.toByteArray(Charsets.UTF_8), "HmacSHA256"))
