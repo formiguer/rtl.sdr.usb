@@ -1,6 +1,7 @@
 package com.formiguer.rtlsdr
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.InputType
 import android.util.Log
 import android.webkit.JavascriptInterface
 import android.view.Gravity
@@ -22,12 +24,14 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.webkit.WebView
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.formiguer.rtlsdr.adsb.AircraftTracker
 import com.formiguer.rtlsdr.adsb.IqSource
 import com.formiguer.rtlsdr.adsb.Mode
+import com.formiguer.rtlsdr.adsb.RadarUploader
 import com.formiguer.rtlsdr.adsb.RadioReceiver
 import com.formiguer.rtlsdr.adsb.RtlTcpClient
 import java.io.IOException
@@ -49,7 +53,10 @@ class MainActivity : Activity() {
     private val tracker = AircraftTracker()
     private val audioOut = AudioOut()
     private lateinit var radio: RadioReceiver
-    private var tab = TAB_ADSB
+    private lateinit var uploader: RadarUploader
+    @Volatile private var tab = TAB_ADSB
+    @Volatile private var radarStatus = ""
+    @Volatile private var radarError = false
 
     @Volatile private var linkStatus = RadioReceiver.Status.CONNECTING
     @Volatile private var linkMessage: String? = null
@@ -88,6 +95,20 @@ class MainActivity : Activity() {
             linkMessage = msg
         }
 
+        uploader = RadarUploader(
+            tracker,
+            config = {
+                val url = prefs.getString(KEY_RADAR_URL, "").orEmpty()
+                val key = prefs.getString(KEY_RADAR_KEY, "").orEmpty()
+                if (prefs.getBoolean(KEY_RADAR_ON, false) && url.isNotBlank() && key.isNotBlank()) RadarUploader.Config(url, key) else null
+            },
+            isAdsbActive = { tab == TAB_ADSB && linkStatus == RadioReceiver.Status.STREAMING },
+            stationName = { "Tablet" },
+        ) { text, error ->
+            radarStatus = text
+            radarError = error
+        }
+
         status = TextView(this).apply {
             textSize = 15f
             gravity = Gravity.CENTER_VERTICAL
@@ -108,10 +129,12 @@ class MainActivity : Activity() {
 
         tabAdsb = Button(this).apply { text = "ADS-B (aviones)"; setOnClickListener { selectTab(TAB_ADSB) } }
         tabAir = Button(this).apply { text = "Banda aérea (audio)"; setOnClickListener { selectTab(TAB_AIR) } }
+        val serverBtn = Button(this).apply { text = "☁ Servidor"; setOnClickListener { showRadarDialog() } }
         val tabBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(tabAdsb, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
             addView(tabAir, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            addView(serverBtn, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
         }
         external = CheckBox(this).apply {
             text = "Usar un driver externo (rtl_tcp) en vez del driver USB integrado"
@@ -174,6 +197,65 @@ class MainActivity : Activity() {
         usbManager.requestPermission(device, pending)
     }
 
+    /** Ajustes del envío de aviones al servidor de swap-turnos (se ven en Administrador general → Mapa). */
+    private fun showRadarDialog() {
+        val url = EditText(this).apply {
+            hint = "Dirección del servidor"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine()
+            setText(prefs.getString(KEY_RADAR_URL, ""))
+        }
+        val key = EditText(this).apply {
+            hint = "Clave"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            setSingleLine()
+            setText(prefs.getString(KEY_RADAR_KEY, ""))
+        }
+        val on = CheckBox(this).apply {
+            text = "Enviar los aviones al servidor"
+            isChecked = prefs.getBoolean(KEY_RADAR_ON, false)
+        }
+        val result = TextView(this).apply { textSize = 13f; setPadding(0, 16, 0, 0) }
+        val help = TextView(this).apply {
+            textSize = 12f
+            text = "Copia la dirección y la clave desde swap-turnos: Administrador general → Mapa. " +
+                "La clave no viaja por la red: cada envío va firmado. Se envía despacio si nadie mira el mapa."
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 20, 40, 0)
+            addView(help); addView(url); addView(key); addView(on); addView(result)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Mapa en el servidor")
+            .setView(box)
+            .setPositiveButton("Guardar") { _, _ ->
+                prefs.edit().putString(KEY_RADAR_URL, url.text.toString().trim())
+                    .putString(KEY_RADAR_KEY, key.text.toString().trim())
+                    .putBoolean(KEY_RADAR_ON, on.isChecked).apply()
+            }
+            .setNeutralButton("Probar", null)
+            .setNegativeButton("Cancelar", null)
+            .create()
+        dialog.show()
+        // «Probar» no cierra la ventana: hace un envío de verdad y cuenta qué contesta el servidor
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            val cfg = RadarUploader.Config(url.text.toString().trim(), key.text.toString().trim())
+            if (cfg.baseUrl.isBlank() || cfg.key.isBlank()) {
+                result.text = "Escribe la dirección y la clave."
+                return@setOnClickListener
+            }
+            result.text = "Probando…"
+            Thread {
+                val r = uploader.sendOnce(cfg)
+                runOnUiThread {
+                    result.text = if (r.ok) "✔ Conectado. El servidor ha recibido ${r.aircraft} aviones."
+                    else "✖ ${r.message}"
+                }
+            }.start()
+        }
+    }
+
     /** Puente con el mapa web: ajustes persistentes y pantalla completa. */
     private inner class MapBridge {
         @JavascriptInterface
@@ -230,12 +312,14 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         radio.start()
+        uploader.start()
         if (tab == TAB_AIR) audioOut.start()
         handler.post(ticker)
     }
 
     override fun onPause() {
         handler.removeCallbacks(ticker)
+        uploader.stop()
         radio.stop()
         audioOut.stop()
         super.onPause()
@@ -264,13 +348,16 @@ class MainActivity : Activity() {
             air.setLink("$dongle · $link", error = !streaming)
             return
         }
-        val text = if (streaming) {
+        var text = if (streaming) {
             val aircraft = tracker.snapshot(now)
             val kb = radio.bytesReceived.get() / 1024
             "$dongle\n$link · $kb kB · mensajes ADS-B: ${tracker.totalMessages} · " +
                 "aviones: ${aircraft.size} (${aircraft.count { it.lat != null }} en el mapa)"
         } else {
             "$dongle\n$link"
+        }
+        if (radarStatus.isNotEmpty() && prefs.getBoolean(KEY_RADAR_ON, false)) {
+            text += "\n☁ " + radarStatus
         }
         status.text = text
         status.setTextColor(if (streaming) Color.rgb(27, 94, 32) else Color.rgb(176, 0, 32))
@@ -283,6 +370,9 @@ class MainActivity : Activity() {
         const val TAG = "RtlSdrDriver"
         const val KEY_EXTERNAL = "use_external_driver"
         const val KEY_MAP_SETTINGS = "map_settings"
+        const val KEY_RADAR_URL = "radar_url"
+        const val KEY_RADAR_KEY = "radar_key"
+        const val KEY_RADAR_ON = "radar_on"
         const val ACTION_USB_PERMISSION = "com.formiguer.rtlsdr.USB_PERMISSION"
         const val TAB_ADSB = 0
         const val TAB_AIR = 1
