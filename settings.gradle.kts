@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "rtl.sdr.usb"
 include(":app")
+include(":adsb")

@@ -16,6 +16,8 @@ jobs:
           java-version: 17
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Unit tests (decodificador ADS-B)
+        run: ./gradlew --no-daemon :adsb:test
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
       - uses: actions/upload-artifact@v4

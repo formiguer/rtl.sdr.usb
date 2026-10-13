@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>html, body, #map { height: 100%; margin: 0; }</style>
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    .plane { background: none; border: none; }
+    .plane svg { width: 28px; height: 28px; filter: drop-shadow(0 0 2px #fff); }
+    .plane span { position: absolute; left: 22px; top: 2px; font: bold 12px sans-serif;
+      background: rgba(255,255,255,.85); padding: 0 3px; border-radius: 3px; white-space: nowrap; }
+  </style>
 </head>
 <body>
 <div id="map"></div>
@@ -17,24 +23,49 @@
   }).addTo(map);
 
   var markers = {};
+  var fitted = false;
 
-  // Fase 2 llamará a esta función con la lista de aviones decodificados:
-  // [{hex, flight, lat, lon, alt, speed, track}]
+  var PLANE = '<svg viewBox="0 0 24 24"><path d="M12 2l2.5 7 7.5 4v2l-7.5-2-.5 6 2.5 2v1L12 21l-4.5 1v-1L10 19l-.5-6L2 15v-2l7.5-4z" fill="#c62828" stroke="#fff" stroke-width="1"/></svg>';
+
+  function icon(a) {
+    var label = (a.flight || a.hex) + (a.alt != null ? ' ' + Math.round(a.alt / 100) * 100 + 'ft' : '');
+    var rot = a.track != null ? a.track : 0;
+    return L.divIcon({
+      className: 'plane',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      html: '<div style="transform:rotate(' + rot + 'deg)">' + PLANE + '</div><span>' + label + '</span>'
+    });
+  }
+
+  function popup(a) {
+    return '<b>' + (a.flight || a.hex) + '</b><br>ICAO ' + a.hex +
+      (a.alt != null ? '<br>Altitud: ' + a.alt + ' ft' : '') +
+      (a.speed != null ? '<br>Velocidad: ' + a.speed + ' kt' : '') +
+      (a.track != null ? '<br>Rumbo: ' + a.track + '°' : '');
+  }
+
+  // Lo llama la app cada segundo con [{hex, flight, lat, lon, alt, speed, track}]
   function updateAircraft(list) {
     var seen = {};
+    var bounds = [];
     list.forEach(function (a) {
       if (a.lat == null || a.lon == null) return;
       seen[a.hex] = true;
-      var label = (a.flight || a.hex) + '<br>' + (a.alt != null ? a.alt + ' ft' : '');
+      bounds.push([a.lat, a.lon]);
       if (markers[a.hex]) {
-        markers[a.hex].setLatLng([a.lat, a.lon]).setPopupContent(label);
+        markers[a.hex].setLatLng([a.lat, a.lon]).setIcon(icon(a)).setPopupContent(popup(a));
       } else {
-        markers[a.hex] = L.marker([a.lat, a.lon]).addTo(map).bindPopup(label);
+        markers[a.hex] = L.marker([a.lat, a.lon], {icon: icon(a)}).addTo(map).bindPopup(popup(a));
       }
     });
     Object.keys(markers).forEach(function (hex) {
       if (!seen[hex]) { map.removeLayer(markers[hex]); delete markers[hex]; }
     });
+    if (!fitted && bounds.length) {
+      map.fitBounds(bounds, {padding: [60, 60], maxZoom: 9});
+      fitted = true;
+    }
   }
 </script>
 </body>

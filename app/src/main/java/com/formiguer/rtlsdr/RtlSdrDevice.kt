@@ -3,7 +3,7 @@ package com.formiguer.rtlsdr
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 
-/** Identifica dongles RTL2832U entre los dispositivos USB conectados. */
+/** Detecta si hay un dongle RTL2832U conectado (solo informativo: el driver USB es otra app). */
 object RtlSdrDevice {
     // Pares vendor:product conocidos de librtlsdr (known_devices).
     private val KNOWN_IDS = setOf(
@@ -27,14 +27,4 @@ object RtlSdrDevice {
 
     fun describe(device: UsbDevice): String =
         "%04x:%04x".format(device.vendorId, device.productId)
-
-    /** Lista de todo lo que ve el puerto USB, para diagnosticar. */
-    fun listAll(manager: UsbManager): String {
-        val devices = manager.deviceList.values
-        if (devices.isEmpty()) return "La tablet no ve ningún dispositivo USB."
-        return devices.joinToString("\n") { d ->
-            val name = try { d.productName ?: "?" } catch (e: SecurityException) { "?" }
-            "• ${describe(d)} $name"
-        }
-    }
 }

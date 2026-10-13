@@ -1,22 +1,24 @@
 package com.formiguer.rtlsdr
 
 import android.app.Activity
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
-import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.webkit.WebView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.formiguer.rtlsdr.adsb.AdsbReceiver
+import com.formiguer.rtlsdr.adsb.AircraftTracker
 
 class MainActivity : Activity() {
 
@@ -24,17 +26,22 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var map: WebView
 
-    private val usbReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                ACTION_USB_PERMISSION -> {
-                    val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
-                    if (granted) refreshDevice() else setStatus("Permiso USB denegado", error = true)
-                }
-                UsbManager.ACTION_USB_DEVICE_ATTACHED,
-                UsbManager.ACTION_USB_DEVICE_DETACHED -> refreshDevice()
-            }
+    private val tracker = AircraftTracker()
+    private var adsb: AdsbReceiver? = null
+
+    @Volatile private var linkStatus = AdsbReceiver.Status.CONNECTING
+    @Volatile private var linkMessage: String? = null
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val ticker = object : Runnable {
+        override fun run() {
+            refresh()
+            handler.postDelayed(this, 1000)
         }
+    }
+
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = refresh()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,9 +49,9 @@ class MainActivity : Activity() {
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
 
         status = TextView(this).apply {
-            textSize = 16f
+            textSize = 15f
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(24, 16, 24, 16)
+            setPadding(24, 12, 24, 12)
         }
         map = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -58,7 +65,6 @@ class MainActivity : Activity() {
         })
 
         val filter = IntentFilter().apply {
-            addAction(ACTION_USB_PERMISSION)
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         }
@@ -67,12 +73,23 @@ class MainActivity : Activity() {
         } else {
             registerReceiver(usbReceiver, filter)
         }
-        refreshDevice()
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        refreshDevice()
+    // Se conecta al driver rtl_tcp solo mientras la app está en primer plano.
+    override fun onResume() {
+        super.onResume()
+        adsb = AdsbReceiver(tracker) { st, msg ->
+            linkStatus = st
+            linkMessage = msg
+        }.also { it.start() }
+        handler.post(ticker)
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(ticker)
+        adsb?.stop()
+        adsb = null
+        super.onPause()
     }
 
     override fun onDestroy() {
@@ -81,35 +98,32 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun refreshDevice() {
-        val device = RtlSdrDevice.find(usbManager)
-        when {
-            device == null -> setStatus(
-                "RTL-SDR no detectado. Dispositivos USB vistos:\n" + RtlSdrDevice.listAll(usbManager),
-                error = true
-            )
-            !usbManager.hasPermission(device) -> {
-                setStatus("RTL-SDR ${RtlSdrDevice.describe(device)} detectado, pidiendo permiso…")
-                requestPermission(device)
+    private fun refresh() {
+        val now = System.currentTimeMillis()
+        val dongle = RtlSdrDevice.find(usbManager)
+            ?.let { "RTL-SDR ${RtlSdrDevice.describe(it)} conectado por USB" }
+            ?: "RTL-SDR no visto por USB"
+        val streaming = linkStatus == AdsbReceiver.Status.STREAMING
+        val link = when (linkStatus) {
+            AdsbReceiver.Status.CONNECTING -> "Conectando con el driver rtl_tcp…"
+            AdsbReceiver.Status.WAITING ->
+                "Sin driver rtl_tcp (${linkMessage ?: "sin respuesta"}). " +
+                    "Abre la app del driver RTL-SDR, pulsa Start y vuelve aquí."
+            AdsbReceiver.Status.STREAMING -> {
+                val aircraft = tracker.snapshot(now)
+                val kb = (adsb?.bytesReceived?.get() ?: 0L) / 1024
+                "Recibiendo: $kb kB · mensajes ADS-B: ${tracker.totalMessages} · " +
+                    "aviones: ${aircraft.size} (${aircraft.count { it.lat != null }} en el mapa)"
             }
-            else -> setStatus("RTL-SDR ${RtlSdrDevice.describe(device)} listo (fase 1: detección USB)")
         }
-    }
-
-    private fun requestPermission(device: UsbDevice) {
-        val flags = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
-        val pending = PendingIntent.getBroadcast(
-            this, 0, Intent(ACTION_USB_PERMISSION).setPackage(packageName), flags
+        setStatus("$dongle\n$link", error = !streaming)
+        map.evaluateJavascript(
+            "if (typeof updateAircraft === 'function') updateAircraft(${tracker.toJson(now)});", null
         )
-        usbManager.requestPermission(device, pending)
     }
 
-    private fun setStatus(text: String, error: Boolean = false) {
+    private fun setStatus(text: String, error: Boolean) {
         status.text = text
         status.setTextColor(if (error) Color.rgb(176, 0, 32) else Color.rgb(27, 94, 32))
-    }
-
-    private companion object {
-        const val ACTION_USB_PERMISSION = "com.formiguer.rtlsdr.USB_PERMISSION"
     }
 }

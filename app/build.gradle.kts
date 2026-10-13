@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+dependencies {
+    implementation(project(":adsb"))
+}
+
 android {
     namespace = "com.formiguer.rtlsdr"
     compileSdk = 34
