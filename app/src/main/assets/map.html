@@ -28,6 +28,8 @@
   var RING_MAX_KM = 250;
 
   var map = L.map('map', {zoomControl: true});
+  // Leaflet necesita una vista inicial antes de añadir capas; luego se ajusta al anillo completo
+  map.setView(CENTER, 6);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; OpenStreetMap contributors'
@@ -54,7 +56,9 @@
   }
 
   // Encuadre inicial: se ve el anillo completo de 250 km
-  map.fitBounds(L.circle(CENTER, {radius: RING_MAX_KM * 1000}).getBounds());
+  var dLat = RING_MAX_KM / 111.32;
+  var dLon = RING_MAX_KM / (111.32 * Math.cos(CENTER[0] * Math.PI / 180));
+  map.fitBounds([[CENTER[0] - dLat, CENTER[1] - dLon], [CENTER[0] + dLat, CENTER[1] + dLon]]);
 
   // Distancia en km al aeropuerto (haversine)
   function distKm(lat, lon) {
