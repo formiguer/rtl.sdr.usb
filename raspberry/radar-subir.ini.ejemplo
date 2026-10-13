@@ -1,0 +1,16 @@
+[radar]
+# Dirección de tu swap-turnos (sin /api/...)
+url = http://blas.byethost7.com/swap_repo_v1/
+# El código de 6 cifras que elegiste en el radar (botón «☁ Tablet»)
+codigo = 000000
+# Donde tu Raspberry ve el JSON de aviones (el mismo que lee tu radar local)
+aircraft_json = http://localhost/skyaware/data/aircraft.json
+# (Opcional) servicio de estado que da CPU/RAM/temperatura, p. ej. http://192.168.0.192:5050/status
+# Si lo dejas vacío, se miden en la Raspberry donde corre el script.
+estado_url =
+nombre = Raspberry Pi
+# Centro: Aeropuerto de Palma
+lat = 39.548
+lon = 2.733
+# Cookie __test de tu navegador (el hosting gratuito la exige a los programas; ver README)
+cookie_test =
