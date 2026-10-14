@@ -24,7 +24,8 @@ import urllib.error
 import urllib.request
 
 PAUSA_CON_ESPECTADOR = 2     # s entre envíos si alguien mira el mapa
-PAUSA_SIN_ESPECTADOR = 10    # s entre envíos si nadie lo mira
+PAUSA_SIN_ESPECTADOR = 60    # s entre envíos si nadie lo mira (ahorra «hits» del hosting; al abrir el mapa tarda hasta este tiempo en verse)
+PAUSA_ERROR_MIN = 10         # s de espera tras el primer error
 PAUSA_ERROR_MAX = 30         # s máximos de espera tras errores seguidos
 MAX_AVIONES = 400            # el servidor descarta lo que pase de aquí
 
@@ -328,7 +329,7 @@ def main():
                 log(f'Error ({fallos}): {e}')
             if args.probar:
                 sys.exit(1)
-            pausa = min(PAUSA_ERROR_MAX, PAUSA_SIN_ESPECTADOR + fallos)
+            pausa = min(PAUSA_ERROR_MAX, PAUSA_ERROR_MIN + fallos)
         time.sleep(pausa)
 
 
