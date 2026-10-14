@@ -64,6 +64,7 @@ class MainActivity : Activity() {
     @Volatile private var tab = TAB_ADSB
     @Volatile private var radarStatus = ""
     @Volatile private var radarError = false
+    private lateinit var txBtn: Button
 
     @Volatile private var linkStatus = RadioReceiver.Status.CONNECTING
     @Volatile private var linkMessage: String? = null
@@ -158,10 +159,13 @@ class MainActivity : Activity() {
         tabAdsb = Button(this).apply { text = "ADS-B (aviones)"; setOnClickListener { selectTab(TAB_ADSB) } }
         tabAir = Button(this).apply { text = "Banda aérea (audio)"; setOnClickListener { selectTab(TAB_AIR) } }
         val serverBtn = Button(this).apply { text = "☁ Servidor"; setOnClickListener { showRadarDialog() } }
+        txBtn = Button(this).apply { setOnClickListener { toggleTransmit() } }
+        updateTxButton()
         val tabBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(tabAdsb, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
             addView(tabAir, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            addView(txBtn, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
             addView(serverBtn, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
         }
         external = CheckBox(this).apply {
@@ -201,6 +205,20 @@ class MainActivity : Activity() {
         } else {
             registerReceiver(usbReceiver, filter)
         }
+    }
+
+    /** Botón rápido: parar/reanudar el envío al servidor sin perder el código (el mapa local sigue igual). */
+    private fun toggleTransmit() {
+        if (prefs.getString(KEY_RADAR_CODE, "").isNullOrBlank()) {
+            showRadarDialog()
+            return
+        }
+        prefs.edit().putBoolean(KEY_RADAR_ON, !prefs.getBoolean(KEY_RADAR_ON, false)).apply()
+        updateTxButton()
+    }
+
+    private fun updateTxButton() {
+        txBtn.text = if (prefs.getBoolean(KEY_RADAR_ON, false)) "📡 Transmitiendo" else "🚫 Solo local"
     }
 
     /** Nivel de batería y si está cargando (el intent «pegajoso» de Android, sin permisos). */
@@ -275,6 +293,7 @@ class MainActivity : Activity() {
                 return@setOnClickListener
             }
             prefs.edit().putString(KEY_RADAR_CODE, text).putBoolean(KEY_RADAR_ON, on.isChecked && text.isNotEmpty()).apply()
+            updateTxButton()
             dialog.dismiss()
         }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
